@@ -8,7 +8,7 @@
 
 - Docker и Docker Compose
 - GNU Make
-- Python 3.10+ и `uv` для автономной локальной разработки
+- Python 3.10+ и `uv` для автономной локальной работы
 
 ### Запуск стека Docker
 
