@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "max_workers": 3,
+  "enable_progress": true,
+  "metadata": {
+    "name": "Multi-Step Analysis Chain",
+    "description": "Enhanced chain with analysis, transform and structured output",
+    "version": "v1"
+  },
+  "search_config": {},
+  "steps": [
+    {
+      "number": 1,
+      "title": "Analyze text",
+      "step_type": "llm",
+      "dependencies": [],
+      "aim": "Analyze the input text and extract key information",
+      "reasoning_questions": "What is the main topic? What are the key points? What is the sentiment?",
+      "stage_action": "Read and analyze the input text thoroughly",
+      "example_reasoning": "Looking at this text, the main topic is X. Key points are A, B, C. The sentiment appears to be positive..."
+    },
+    {
+      "number": 2,
+      "title": "Extract entities",
+      "step_type": "llm",
+      "dependencies": [1],
+      "aim": "Extract named entities from the analyzed text",
+      "reasoning_questions": "What people, places, and organizations are mentioned?",
+      "stage_action": "Identify and categorize named entities",
+      "example_reasoning": "From the text I can identify: Person - John Smith, Organization - ACME Corp, Location - New York..."
+    },
+    {
+      "number": 3,
+      "title": "Generate report",
+      "step_type": "structured_output",
+      "dependencies": [2],
+      "aim": "Generate a structured analysis report",
+      "reasoning_questions": "What format should the report follow?",
+      "stage_action": "Create a JSON report with all extracted information",
+      "example_reasoning": "I will structure the report with summary, entities, and sentiment fields...",
+      "step_config": {
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "summary": {"type": "string"},
+            "sentiment": {"type": "string", "enum": ["positive", "negative", "neutral"]},
+            "entities": {
+              "type": "object",
+              "properties": {
+                "people": {"type": "array", "items": {"type": "string"}},
+                "organizations": {"type": "array", "items": {"type": "string"}},
+                "locations": {"type": "array", "items": {"type": "string"}}
+              }
+            },
+            "key_points": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["summary", "sentiment"]
+        }
+      }
+    }
+  ]
+}

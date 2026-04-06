@@ -1,0 +1,32 @@
+[project]
+name = "gigaevo-memory-monorepo"
+version = "0.1.0"
+description = "GigaEvo Memory Module - Monorepo root with workspace configuration"
+requires-python = ">=3.12"
+dependencies = [
+    "gigaevo-memory-api",
+    "gigaevo-memory-web-ui",
+    "gigaevo-memory",
+]
+
+[project.optional-dependencies]
+dev = [
+    "gigaevo-memory-api[dev]",
+    "gigaevo-memory-web-ui[dev]",
+    "gigaevo-memory[dev]",
+]
+
+[tool.uv.workspace]
+members = [
+    "api",
+    "web_ui",
+    "client/python",
+]
+
+[tool.uv.sources]
+gigaevo-memory-api = { workspace = true }
+gigaevo-memory-web-ui = { workspace = true }
+gigaevo-memory = { workspace = true }
+
+[tool.ruff]
+line-length = 120

@@ -1,0 +1,31 @@
+{
+  "description": "Map-Reduce Pattern for Distributed Data Processing",
+  "explanation": "Use this pattern when processing large datasets that can be split into independent chunks. Map phase processes chunks in parallel, reduce phase aggregates results. Ideal for batch jobs, ETL pipelines, and analytics workloads.",
+  "keywords": ["pattern", "distributed", "map-reduce", "parallel", "batch", "etl", "analytics"],
+  "category": "pattern_optimization",
+  "task_description": "Optimize chain for processing large datasets efficiently",
+  "strategy": "exploration",
+  "evolution_statistics": {
+    "gain": 0.85,
+    "best_quartile": "Q1",
+    "survival": 12
+  },
+  "works_with": ["memory-card-batch-processing", "memory-card-pipeline-pattern"],
+  "links": ["idea-parallel-processing", "idea-data-aggregation"],
+  "usage": {
+    "retrieved": 45,
+    "increased_fitness": 0.23
+  },
+  "examples": [
+    {
+      "scenario": "Log Analysis Pipeline",
+      "description": "Processing 10GB of server logs to extract error patterns",
+      "result": "Reduced processing time from 2 hours to 15 minutes"
+    },
+    {
+      "scenario": "ETL Data Warehouse",
+      "description": "Daily ETL job transforming 1M records",
+      "result": "Enabled horizontal scaling across 8 workers"
+    }
+  ]
+}

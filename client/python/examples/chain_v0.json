@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "max_workers": 1,
+  "enable_progress": true,
+  "metadata": {
+    "name": "Simple Analysis Chain",
+    "description": "Basic chain with single LLM step",
+    "version": "v0"
+  },
+  "search_config": {},
+  "steps": [
+    {
+      "number": 1,
+      "title": "Analyze text",
+      "step_type": "llm",
+      "dependencies": [],
+      "aim": "Analyze the input text and provide a summary",
+      "reasoning_questions": "What is the main topic? What are the key points?",
+      "stage_action": "Read and summarize the input text",
+      "example_reasoning": "Looking at this text, the main topic is X. Key points are A, B, C..."
+    }
+  ]
+}

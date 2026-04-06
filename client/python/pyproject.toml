@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gigaevo-memory"
+dynamic = ["version"]
+description = "Python client for GigaEvo Memory Module — persistent storage for CARL artifacts"
+readme = "README.md"
+license = "MIT"
+requires-python = ">= 3.12"
+authors = [{ name = "Glazkoff", email = "glazkov@airi.net" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: Pydantic :: 2",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "httpx >= 0.27",
+    "pydantic >= 2.0",
+    "httpx-sse >= 0.4",
+    "mmar-carl >= 0.1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "respx", "ruff", "mypy", "build"]
+
+[tool.hatch.version]
+path = "src/gigaevo_memory/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gigaevo_memory"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:mmar_carl.*",
+    "ignore::DeprecationWarning:pydantic.*",
+]

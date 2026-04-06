@@ -1,0 +1,102 @@
+name: gigaevo-memory
+
+services:
+  memory-migrate:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+      target: runtime
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "app/db/alembic.ini", "upgrade", "head"]
+    networks:
+      - memory-net
+
+  memory-api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+      target: runtime
+    ports:
+      - "${MEMORY_API_HOST_PORT:-8002}:8000"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      memory-migrate:
+        condition: service_completed_successfully
+    networks:
+      - memory-net
+
+  memory-api-test:
+    profiles: ["test"]
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+      target: test
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - memory-net
+
+  web-ui:
+    build:
+      context: ..
+      dockerfile: web_ui/Dockerfile
+    ports:
+      - "${MEMORY_WEB_UI_HOST_PORT:-7861}:7860"
+    environment:
+      - MEMORY_API_URL=http://memory-api:8000
+      - GRADIO_SERVER_NAME=0.0.0.0
+    depends_on:
+      memory-api:
+        condition: service_started
+    networks:
+      - memory-net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-memory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-memory_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-memory}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-memory}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - memory-net
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - memory-net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  memory-net:
+    driver: bridge
