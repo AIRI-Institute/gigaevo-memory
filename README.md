@@ -1,82 +1,82 @@
-# GigaEvo Memory - подсистема памяти для процесса эволюции
+# GigaEvo Memory - Memory Subsystem for the Evolution Process
 
-Постоянная память для артефактов CARL: шагов (steps), цепочек (chains), агентов (agents) и карт памяти (memory cards).
+Persistent memory for CARL artifacts: steps, chains, agents, and memory cards.
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-### Предварительные требования
+### Prerequisites
 
-- Docker и Docker Compose
+- Docker and Docker Compose
 - GNU Make
-- Python 3.10+ и `uv` для автономной локальной работы
+- Python 3.10+ and `uv` for standalone local development
 
-### Запуск стека Docker
+### Starting the Docker Stack
 
 ```bash
 make up
-# Приостановить стек без удаления контейнеров
+# Pause the stack without removing containers
 make stop
 ```
 
-Теперь команда `make up` автоматически применяет миграции Alembic перед запуском API. Команда `make migrate` остается доступной, если вы хотите запустить обновление схемы явно.
+`make up` now automatically applies Alembic migrations before starting the API. The `make migrate` command is still available if you want to run a schema update explicitly.
 
-### Точки доступа
+### Access Points
 
 - API: `http://localhost:8002`
 - Swagger UI: `http://localhost:8002/docs`
-- Веб-интерфейс (Web UI): `http://localhost:7861`
+- Web UI: `http://localhost:7861`
 
-Развертывание compose по умолчанию публикует только API и Web UI. PostgreSQL и Redis остаются внутренними для сети Docker. Используйте `make psql` или `make redis-cli`, если вам нужен shell-доступ к этим сервисам.
+The default compose deployment only publishes the API and Web UI. PostgreSQL and Redis remain internal to the Docker network. Use `make psql` or `make redis-cli` if you need shell access to those services.
 
-### Переопределение публикуемых портов
+### Overriding Published Ports
 
-Установите эти переменные в `deploy/.env` или экспортируйте их перед запуском `make up`:
+Set these variables in `deploy/.env` or export them before running `make up`:
 
 ```bash
 MEMORY_API_HOST_PORT=8002
 MEMORY_WEB_UI_HOST_PORT=7861
 ```
 
-### Автономная локальная разработка
+### Standalone Local Development
 
-Автономные запуски API и UI сохраняют свои исходные настройки по умолчанию, если вы не переопределите их явно:
+Standalone API and UI runs keep their original defaults unless you explicitly override them:
 
-- Примеры API в клиентской документации могут использовать `http://localhost:8000`
-- Автономный процесс Gradio UI по умолчанию использует `http://localhost:7860`
+- API client documentation examples may use `http://localhost:8000`
+- The standalone Gradio UI process defaults to `http://localhost:7860`
 
-Эти автономные настройки по умолчанию не зависят от описанного выше стека Docker Compose.
+These standalone defaults are independent of the Docker Compose stack described above.
 
-## 📚 Возможности
+## 📚 Features
 
-### Типы сущностей
+### Entity Types
 
-- **Шаги (Steps)** — Одиночные шаги рассуждения (LLM, Инструмент, MCP, Память, Преобразование, Условие)
-- **Цепочки (Chains)** — Последовательности шагов с зависимостями
-- **Агенты (Agents)** — Полные конфигурации агентов
-- **Карты памяти (Memory Cards)** — Многократно используемые паттерны и знания
+- **Steps** — Individual reasoning steps (LLM, Tool, MCP, Memory, Transform, Condition)
+- **Chains** — Sequences of steps with dependencies
+- **Agents** — Complete agent configurations
+- **Memory Cards** — Reusable patterns and knowledge
 
-### Управление версиями
+### Version Management
 
-- Неизменяемая история версий
-- Привязка к каналам (latest, stable, custom)
-- Различия (diff) между версиями
-- Откат к предыдущим версиям
+- Immutable version history
+- Channel pinning (latest, stable, custom)
+- Diffs between versions
+- Rollback to previous versions
 
-### Поиск
+### Search
 
-- Полнотекстовый поиск
-- Фильтрация по типу сущности
-- Фильтрация по тегам
-- Фасетный поиск
+- Full-text search
+- Filtering by entity type
+- Filtering by tags
+- Faceted search
 
-### Возможности UI
+### UI Features
 
-- Просмотр сущностей по типам
-- Редактирование содержимого сущностей (редактор JSON)
-- Поиск по всем сущностям
-- Мониторинг статуса подключения
+- Browse entities by type
+- Edit entity content (JSON editor)
+- Search across all entities
+- Connection status monitoring
 
-## 🏗️ Архитектура
+## 🏗️ Architecture
 
 ```text
 ┌─────────────────────────────┐
@@ -98,12 +98,12 @@ MEMORY_WEB_UI_HOST_PORT=7861
 └──────────────┘ └──────────────┘
 ```
 
-## 📖 Документация API
+## 📖 API Documentation
 
 - **Swagger UI:** `http://localhost:8002/docs`
-- **Спецификация OpenAPI:** [openapi.yaml](openapi.yaml)
+- **OpenAPI Specification:** [openapi.yaml](openapi.yaml)
 
-## 🧪 Тестирование
+## 🧪 Testing
 
 ```bash
 make test
@@ -111,6 +111,6 @@ make test-integration
 make client-test
 ```
 
-## 📄 Лицензия
+## 📄 License
 
 MIT
