@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "gigaevo-memory-api",
     "gigaevo-memory-web-ui",
+    "gigaevo-client",
     "gigaevo-memory",
 ]
 
@@ -13,6 +14,7 @@ dependencies = [
 dev = [
     "gigaevo-memory-api[dev]",
     "gigaevo-memory-web-ui[dev]",
+    "gigaevo-client[dev]",
     "gigaevo-memory[dev]",
 ]
 
@@ -21,11 +23,13 @@ members = [
     "api",
     "web_ui",
     "client/python",
+    "client/python-meta",
 ]
 
 [tool.uv.sources]
 gigaevo-memory-api = { workspace = true }
 gigaevo-memory-web-ui = { workspace = true }
+gigaevo-client = { workspace = true }
 gigaevo-memory = { workspace = true }
 
 [tool.ruff]

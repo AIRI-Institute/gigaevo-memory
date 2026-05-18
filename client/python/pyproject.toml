@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gigaevo-memory"
+name = "gigaevo-client"
 dynamic = ["version"]
-description = "Python client for GigaEvo Memory Module — persistent storage for CARL artifacts"
+description = "Unified GigaEvo SDK — persistent memory for CARL artifacts + Platform API surface"
 readme = "README.md"
 license = "MIT"
 requires-python = ">= 3.12"
@@ -27,13 +27,18 @@ dependencies = [
 dev = ["pytest", "pytest-asyncio", "respx", "ruff", "mypy", "build"]
 
 [tool.hatch.version]
-path = "src/gigaevo_memory/__init__.py"
+path = "src/gigaevo_client/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 include = ["/src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gigaevo_memory"]
+# Ships only the canonical ``gigaevo_client`` package. The legacy
+# ``gigaevo_memory`` import-path shim now lives in a sibling
+# distribution at ``client/python-meta`` so the two PyPI artefacts
+# (``gigaevo-client`` + the meta ``gigaevo-memory``) are independently
+# versionable.
+packages = ["src/gigaevo_client"]
 
 [tool.ruff]
 line-length = 120
@@ -43,4 +48,8 @@ testpaths = ["tests"]
 filterwarnings = [
     "ignore::DeprecationWarning:mmar_carl.*",
     "ignore::DeprecationWarning:pydantic.*",
+    # Existing tests still import from ``gigaevo_memory``; the shim
+    # warning would spam pytest output. The dedicated rename tests
+    # turn warnings back on locally to assert the shim fires.
+    "ignore:The 'gigaevo_memory' package was renamed.*:DeprecationWarning",
 ]

@@ -3,25 +3,64 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import (
+    AuthContext,
+    default_namespace_for,
+    default_read_namespace_for,
+    require_api_key,
+)
 from ..db.session import get_db
-from ..models.requests import EntityCreateRequest, EntityUpdateRequest
+from ..models.requests import (
+    EntityCreateRequest,
+    EntityPatchRequest,
+    EntityUpdateRequest,
+    FavouriteRequest,
+    RecordRunRequest,
+)
 from ..models.responses import AgentResponse
-from ..services.entity_service import EntityService, compute_etag
+from ..services.entity_service import EntityService, compute_etag, entity_metadata_kwargs
 
 router = APIRouter(prefix="/v1/agents", tags=["agents"])
+
+
+def _agent_response(entity, version, channel: str) -> AgentResponse:
+    """Build an AgentResponse from an Entity + EntityVersion pair.
+
+    Centralises the (otherwise repeated) ``etag`` + library-metadata
+    plumbing so every endpoint surfaces the same shape to CARE.
+    """
+    etag = compute_etag(version.content_json)
+    return AgentResponse(
+        entity_type="agent",
+        entity_id=str(entity.entity_id),
+        version_id=str(version.version_id),
+        channel=channel,
+        etag=etag,
+        meta=version.meta_json or {},
+        content=version.content_json,
+        **entity_metadata_kwargs(entity),
+    )
 
 
 @router.post("", status_code=201, response_model=AgentResponse)
 async def create_agent(
     body: EntityCreateRequest,
+    auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new agent entity with its first version."""
+    """Create a new agent entity with its first version.
+
+    Authenticated callers that omit ``meta.namespace`` get their writes
+    auto-scoped to ``auth.owner`` via the shared
+    :func:`default_namespace_for` helper. Anonymous opt-in callers
+    keep the request body's namespace as-is (typically ``None``).
+    """
     svc = EntityService(db)
     entity_type = "agents"
+    namespace = default_namespace_for(body.meta.namespace, auth)
 
     evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
 
@@ -34,7 +73,7 @@ async def create_agent(
             tags=body.meta.tags,
             when_to_use=body.meta.when_to_use,
             author=body.meta.author,
-            namespace=body.meta.namespace,
+            namespace=namespace,
             channel=body.channel,
             evolution_meta=evolution_meta,
             parent_version_id=body.parent_version_id,
@@ -42,45 +81,83 @@ async def create_agent(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    etag = compute_etag(version.content_json)
-    return AgentResponse(
-        entity_type="agent",
-        entity_id=str(entity.entity_id),
-        version_id=str(version.version_id),
-        channel=body.channel,
-        etag=etag,
-        meta=version.meta_json or {},
-        content=version.content_json,
-    )
+    return _agent_response(entity, version, body.channel)
 
 
 @router.get("", response_model=List[AgentResponse])
 async def list_agents(
-    limit: int = 50,
-    offset: int = 0,
+    response: Response,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    cursor: str | None = Query(
+        None,
+        description=(
+            "Keyset-pagination cursor returned by a previous call's "
+            "`X-Next-Cursor` response header. Stable past 10k "
+            "entities; only valid with the default sort."
+        ),
+    ),
     channel: str = "latest",
+    sort_by: str = Query(
+        "last_run_at",
+        pattern="^(created_at|last_run_at|run_count|display_name)$",
+        description="Field to sort by. Default matches CARE library shape.",
+    ),
+    sort_dir: str = Query(
+        "desc",
+        pattern="^(asc|desc)$",
+        description="Sort direction. Default `desc` so the library shows the most recently used agents on top.",
+    ),
+    favourites_only: bool = Query(
+        False,
+        description="When true, only return agents flagged `favourite=TRUE`.",
+    ),
+    tags: list[str] | None = Query(
+        None,
+        description="Filter to agents whose `tags` JSONB array contains ALL listed tokens (AND semantics).",
+    ),
+    q: str | None = Query(
+        None,
+        description="Case-insensitive substring match across display_name / name / description.",
+    ),
+    namespace: str | None = Query(
+        None,
+        description="Restrict to a single CARE namespace.",
+    ),
+    auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all agents with pagination."""
+    """List agents with CARE library sort/filter knobs.
+
+    Authenticated callers without an explicit ``?namespace`` query
+    are auto-scoped to ``auth.owner`` (mirrors the writes-side
+    auto-scoping). The ``read:any`` scope opts out of that scoping.
+    Anonymous callers in opt-in deployments keep the "list
+    everything" semantics.
+
+    Defaults match the LibraryScreen's home view: agents in the user's
+    namespace, sorted by ``last_run_at DESC`` so recently-used agents
+    surface first.
+    """
+    effective_namespace = default_read_namespace_for(namespace, auth)
     svc = EntityService(db)
-    items, _, _ = await svc.list_entities(
+    items, next_cursor, has_more = await svc.list_entities(
         entity_type="agent",
         limit=limit,
         offset=offset,
+        cursor=cursor,
         channel=channel,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        favourites_only=favourites_only,
+        tags=tags,
+        q=q,
+        namespace=effective_namespace,
     )
-    return [
-        AgentResponse(
-            entity_type="agent",
-            entity_id=str(entity.entity_id),
-            version_id=str(version.version_id),
-            channel=channel,
-            etag=compute_etag(version.content_json),
-            meta=version.meta_json or {},
-            content=version.content_json,
-        )
-        for entity, version in items
-    ]
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    if next_cursor:
+        response.headers["X-Next-Cursor"] = next_cursor
+    return [_agent_response(entity, version, channel) for entity, version in items]
 
 
 @router.get("/{agent_id}", response_model=AgentResponse)
@@ -106,15 +183,7 @@ async def get_agent(
     if if_none_match and if_none_match == etag:
         return Response(status_code=304)
 
-    return AgentResponse(
-        entity_type="agent",
-        entity_id=str(entity.entity_id),
-        version_id=str(version.version_id),
-        channel=channel,
-        etag=etag,
-        meta=version.meta_json or {},
-        content=version.content_json,
-    )
+    return _agent_response(entity, version, channel)
 
 
 @router.put("/{agent_id}", response_model=AgentResponse)
@@ -160,16 +229,90 @@ async def update_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     entity, version = result
-    etag = compute_etag(version.content_json)
-    return AgentResponse(
-        entity_type="agent",
-        entity_id=str(entity.entity_id),
-        version_id=str(version.version_id),
-        channel=body.channel,
-        etag=etag,
-        meta=version.meta_json or {},
-        content=version.content_json,
+    return _agent_response(entity, version, body.channel)
+
+
+@router.patch("/{agent_id}", response_model=AgentResponse)
+async def patch_agent_metadata(
+    agent_id: uuid.UUID,
+    body: EntityPatchRequest,
+    channel: str = "latest",
+    db: AsyncSession = Depends(get_db),
+):
+    """Partial update of CARE-mutable entity-level fields.
+
+    Mutates ``display_name`` / ``description`` / ``tags`` / ``favourite``
+    on the entity row without creating a new version. CARE uses this
+    when the user renames an agent or toggles its favourite/tags from
+    the library screen.
+    """
+    svc = EntityService(db)
+    entity = await svc.update_metadata(
+        agent_id,
+        display_name=body.display_name,
+        description=body.description,
+        tags=body.tags,
+        favourite=body.favourite,
     )
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if entity.entity_type != "agent":
+        raise HTTPException(status_code=404, detail="Entity is not an agent")
+
+    # Resolve the channel-pointed version to return the same shape as GET.
+    result = await svc.get_entity(agent_id, channel)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Agent has no versions")
+    _, version = result
+    return _agent_response(entity, version, channel)
+
+
+@router.post("/{agent_id}/favourite", response_model=AgentResponse)
+async def toggle_agent_favourite(
+    agent_id: uuid.UUID,
+    body: FavouriteRequest,
+    channel: str = "latest",
+    db: AsyncSession = Depends(get_db),
+):
+    """Set the favourite flag on an agent (idempotent, no new version)."""
+    svc = EntityService(db)
+    entity = await svc.set_favourite(agent_id, body.favourite)
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if entity.entity_type != "agent":
+        raise HTTPException(status_code=404, detail="Entity is not an agent")
+
+    result = await svc.get_entity(agent_id, channel)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Agent has no versions")
+    _, version = result
+    return _agent_response(entity, version, channel)
+
+
+@router.post("/{agent_id}/run-recorded", response_model=AgentResponse)
+async def record_agent_run(
+    agent_id: uuid.UUID,
+    body: RecordRunRequest,
+    channel: str = "latest",
+    db: AsyncSession = Depends(get_db),
+):
+    """Bump ``run_count`` and set ``last_run_at = now()``.
+
+    Called by CARE (or any client) every time a saved agent is run, so
+    the library can sort by usage/recency.
+    """
+    svc = EntityService(db)
+    entity = await svc.record_run(agent_id, run_id=body.run_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if entity.entity_type != "agent":
+        raise HTTPException(status_code=404, detail="Entity is not an agent")
+
+    result = await svc.get_entity(agent_id, channel)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Agent has no versions")
+    _, version = result
+    return _agent_response(entity, version, channel)
 
 
 @router.delete("/{agent_id}", status_code=204)

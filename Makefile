@@ -2,11 +2,11 @@ COMPOSE := docker compose -p gigaevo-memory -f deploy/docker-compose.yml
 COMPOSE_TEST := $(COMPOSE) --profile test
 UV := uv
 
-.PHONY: up stop down restart rebuild rebuild-logs rl build logs migrate migrate-down migrate-create db-reset \
+.PHONY: up stop down restart rebuild rebuild-logs rl build logs migrate migrate-down migrate-create migrate-check db-reset \
         test test-api-unit test-api-all test-integration test-roundtrip lint fmt openapi \
         client-install client-build client-test client-lint client-publish \
         client-publish-test client-version client-clean \
-        psql redis-cli seed clean help \
+        psql redis-cli seed create-key backup backup-dry-run clean help \
         web-ui-logs web-ui-build web-ui-reload \
         local-db local-redis local-api local-ui local-start local-stop local-status
 
@@ -46,6 +46,17 @@ migrate-down: ## Rollback last migration
 
 migrate-create: ## Create new migration (make migrate-create m="description")
 	$(COMPOSE) run --rm memory-migrate alembic -c app/db/alembic.ini revision --autogenerate -m "$(m)"
+
+migrate-check: ## Validate migration chain + alembic upgrade/downgrade round-trip (matches CI gate)
+	@echo "🧪 Static migration chain integrity (no DB)..."
+	cd api && $(UV) run pytest tests/test_migration_chain.py -v
+	@echo "🧪 alembic upgrade head (clean DB → head)..."
+	$(COMPOSE) run --rm memory-migrate alembic -c app/db/alembic.ini upgrade head
+	@echo "🧪 alembic downgrade -1..."
+	$(COMPOSE) run --rm memory-migrate alembic -c app/db/alembic.ini downgrade -1
+	@echo "🧪 alembic upgrade head (re-apply)..."
+	$(COMPOSE) run --rm memory-migrate alembic -c app/db/alembic.ini upgrade head
+	@echo "✅ Migration round-trip OK"
 
 db-reset: ## Reset database (drop all tables and re-run migrations)
 	@echo "⚠️  This will delete all data in the database!"
@@ -92,31 +103,34 @@ openapi: ## Generate/update openapi.yaml from FastAPI
 	$(COMPOSE) run --rm memory-api python -c \
 		"import json, yaml; from app.main import app; print(yaml.dump(app.openapi()))" > openapi.yaml
 
-client-install: ## Install client package + dev tools into the workspace .venv
-	$(UV) sync --package gigaevo-memory --extra dev --inexact
+client-install: ## Install both client packages (gigaevo-client + gigaevo-memory meta) + dev tools
+	$(UV) sync --extra dev --inexact
 
-client-build: ## Build sdist + wheel
+client-build: ## Build sdist + wheel for both gigaevo-client and the gigaevo-memory meta-package
 	$(UV) run --extra dev python -m build client/python
+	$(UV) run --extra dev python -m build client/python-meta
 
 client-test: ## Run client unit tests (no Docker required)
 	@echo "🧪 Running client unit tests..."
 	$(UV) run --extra dev python -m pytest client/python/tests/ -v -W ignore::pytest.PytestConfigWarning
 
 client-lint: ## Lint client code (ruff + mypy)
-	$(UV) run --extra dev ruff check client/python/src/ client/python/tests/
+	$(UV) run --extra dev ruff check client/python/src/ client/python/tests/ client/python-meta/src/
 	$(UV) run --extra dev mypy --config-file client/python/pyproject.toml client/python/src/
 
-client-publish: ## Publish package to PyPI
-	$(UV) run --with twine twine upload client/python/dist/*
+client-publish: ## Publish both gigaevo-client and gigaevo-memory wheels to PyPI
+	$(UV) run --with twine twine upload client/python/dist/* client/python-meta/dist/*
 
-client-publish-test: ## Publish to TestPyPI
-	$(UV) run --with twine twine upload --repository testpypi client/python/dist/*
+client-publish-test: ## Publish both wheels to TestPyPI
+	$(UV) run --with twine twine upload --repository testpypi client/python/dist/* client/python-meta/dist/*
 
-client-version: ## Bump version (make client-version v=X.Y.Z)
-	@sed -i.bak 's/__version__ = ".*"/__version__ = "$(v)"/' client/python/src/gigaevo_memory/__init__.py && rm -f client/python/src/gigaevo_memory/__init__.py.bak
+client-version: ## Bump version (make client-version v=X.Y.Z) — updates the canonical gigaevo_client + the meta-package
+	@sed -i.bak 's/__version__ = ".*"/__version__ = "$(v)"/' client/python/src/gigaevo_client/__init__.py && rm -f client/python/src/gigaevo_client/__init__.py.bak
+	@sed -i.bak 's/^version = ".*"/version = "$(v)"/' client/python-meta/pyproject.toml && rm -f client/python-meta/pyproject.toml.bak
 
-client-clean: ## Remove dist/, build/, *.egg-info
+client-clean: ## Remove dist/, build/, *.egg-info for both client distributions
 	rm -rf client/python/dist/ client/python/build/ client/python/src/*.egg-info
+	rm -rf client/python-meta/dist/ client/python-meta/build/ client/python-meta/src/*.egg-info
 
 psql: ## Interactive psql session
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-memory} -d $${POSTGRES_DB:-memory}
@@ -126,6 +140,21 @@ redis-cli: ## Interactive redis-cli session
 
 seed: ## Load test data fixtures
 	$(COMPOSE) run --rm memory-api python -m app.seed
+
+create-key: ## Issue an API key (make create-key OWNER=alice [SCOPES=read:any,evolve] [LABEL="..."] [EXPIRES_DAYS=30])
+	@if [ -z "$(OWNER)" ]; then echo "error: OWNER is required (e.g. make create-key OWNER=alice)" >&2; exit 2; fi
+	$(COMPOSE) run --rm \
+		-e OWNER='$(OWNER)' \
+		-e SCOPES='$(SCOPES)' \
+		-e LABEL='$(LABEL)' \
+		-e EXPIRES_DAYS='$(EXPIRES_DAYS)' \
+		memory-api python -m app.create_key
+
+backup: ## Dump Postgres to ./backups (optionally upload to S3 via S3_BUCKET=...)
+	deploy/scripts/backup.sh
+
+backup-dry-run: ## Show the commands `make backup` would run, without executing them
+	deploy/scripts/backup.sh --dry-run
 
 web-ui-logs: ## View web-ui logs
 	$(COMPOSE) logs -f web-ui

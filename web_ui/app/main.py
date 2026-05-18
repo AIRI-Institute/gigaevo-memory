@@ -5,6 +5,7 @@ import logging
 
 import gradio as gr
 
+from .pages.agent_skills import agent_skills_tab
 from .pages.chains import chains_tab
 from .pages.memory_cards import memory_cards_tab
 from .pages.search import search_tab
@@ -86,6 +87,9 @@ with gr.Blocks(title="GigaEvo Memory") as app:
             #     steps_tab(client)
             # with gr.TabItem("🤖 Agents"):
             #     agents_tab(client)
+
+            with gr.TabItem("🛠️ Agent Skills"):
+                agent_skills_tab(client)
 
             with gr.TabItem("💡 Memory Cards"):
                 memory_cards_tab(client)

@@ -172,6 +172,17 @@ class EntityTypeConfig:
             "placeholder": '{\n  "description": "",\n  "examples": []\n}',
             "type": "memory_card",
         },
+        "agent_skills": {
+            "name": "Agent Skill",
+            "plural": "Agent Skills",
+            "icon": "🛠️",
+            "placeholder": (
+                '{\n  "name": "",\n  "description": "",\n  "uri": "",\n'
+                '  "sha256": "",\n  "manifest": {},\n  "instructions": "",\n'
+                '  "allowed_tools": [],\n  "tags": []\n}'
+            ),
+            "type": "agent_skill",
+        },
     }
 
     @classmethod

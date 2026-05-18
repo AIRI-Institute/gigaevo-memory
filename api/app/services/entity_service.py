@@ -31,6 +31,7 @@ VALID_ENTITY_TYPES = {
     "steps": "step",
     "chains": "chain",
     "agents": "agent",
+    "agent_skills": "agent_skill",
     "memory_cards": "memory_card",
 }
 
@@ -187,6 +188,72 @@ class EntityService:
             },
         )
 
+    def _extract_fitness(self, evolution_meta: dict | None) -> float | None:
+        """Pull the canonical fitness scalar out of evolution_meta.
+
+        Prefers the §5 P1 standardised ``fitness_score`` field; falls
+        back to the legacy gigaevo-core ``fitness`` alias so pre-2026-05
+        rows continue to drive evolved-channel promotion.
+        """
+        if not evolution_meta:
+            return None
+        score = evolution_meta.get("fitness_score")
+        if score is None:
+            score = evolution_meta.get("fitness")
+        try:
+            return float(score) if score is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    async def _maybe_promote_evolved_channel(
+        self,
+        channels: dict[str, str],
+        new_version_id: uuid.UUID,
+        evolution_meta: dict | None,
+    ) -> dict[str, str]:
+        """Pin the ``evolved`` channel to ``new_version_id`` when its
+        fitness beats whatever's currently pinned there.
+
+        Auto-pin rules (P2 §5 channel `evolved` semantics):
+          * No fitness on the new version → no-op.
+          * No ``evolved`` channel yet → pin it (first-evolution).
+          * Current pin's fitness is missing / unparsable → pin new.
+          * New fitness > current → pin new.
+          * Otherwise → leave the pin alone (strict ``>``: ties keep the
+            incumbent so a re-run with identical score doesn't churn).
+
+        Returns a (possibly new) channels dict; callers should always
+        re-assign because dict identity may change.
+        """
+        new_score = self._extract_fitness(evolution_meta)
+        if new_score is None:
+            return channels
+
+        current_evolved_id = channels.get("evolved")
+        if current_evolved_id is None:
+            channels = dict(channels)
+            channels["evolved"] = str(new_version_id)
+            return channels
+
+        try:
+            current_evolved_uuid = uuid.UUID(current_evolved_id)
+        except (ValueError, TypeError):
+            # Corrupt pointer — overwrite with the known-good new id.
+            channels = dict(channels)
+            channels["evolved"] = str(new_version_id)
+            return channels
+
+        current_version = await self.get_version(current_evolved_uuid)
+        current_score = (
+            self._extract_fitness(current_version.evolution_meta)
+            if current_version is not None
+            else None
+        )
+        if current_score is None or new_score > current_score:
+            channels = dict(channels)
+            channels["evolved"] = str(new_version_id)
+        return channels
+
     async def create_entity(
         self,
         entity_type_plural: str,
@@ -207,6 +274,16 @@ class EntityService:
         entity_id = uuid.uuid4()
         version_id = uuid.uuid4()
 
+        initial_channels: dict[str, str] = {
+            channel: str(version_id),
+            "latest": str(version_id),
+        }
+        # First-time evolution: if the create call carries a
+        # fitness_score, automatically pin `evolved` to this version.
+        initial_channels = await self._maybe_promote_evolved_channel(
+            initial_channels, version_id, evolution_meta
+        )
+
         entity = Entity(
             entity_id=entity_id,
             entity_type=entity_type,
@@ -214,7 +291,15 @@ class EntityService:
             name=name,
             tags=tags or [],
             when_to_use=when_to_use,
-            channels={channel: str(version_id), "latest": str(version_id)},
+            channels=initial_channels,
+            # CARE library metadata defaults. `display_name` mirrors
+            # `name` so the library renders something useful on day-one
+            # (CARE will let the user override via PATCH later);
+            # `description` reuses `when_to_use` for the same reason.
+            # `favourite` / `run_count` / `last_run_at` keep their DB
+            # defaults (False / 0 / NULL).
+            display_name=name[:200],
+            description=when_to_use,
         )
         self.db.add(entity)
 
@@ -249,7 +334,13 @@ class EntityService:
         await self.db.refresh(version)
 
         await publish_entity_event(
-            "created", str(entity_id), entity_type, str(version_id), channel
+            "created",
+            str(entity_id),
+            entity_type,
+            str(version_id),
+            channel,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
         )
         return entity, version
 
@@ -372,6 +463,11 @@ class EntityService:
         channels = dict(entity.channels)
         channels[channel] = str(version_id)
         channels["latest"] = str(version_id)  # Always update latest
+        # Auto-promote `evolved` when this version's fitness beats the
+        # current pin (or no pin exists yet) — P2 §5.
+        channels = await self._maybe_promote_evolved_channel(
+            channels, version_id, evolution_meta
+        )
         entity.channels = channels
 
         await self.db.flush()
@@ -389,7 +485,13 @@ class EntityService:
         await self.db.refresh(version)
 
         await publish_entity_event(
-            "updated", str(entity_id), entity.entity_type, str(version_id), channel
+            "updated",
+            str(entity_id),
+            entity.entity_type,
+            str(version_id),
+            channel,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
         )
         return entity, version
 
@@ -407,8 +509,137 @@ class EntityService:
         await delete_entity_search_documents(self.db, entity.entity_id)
         await self.db.commit()
 
-        await publish_entity_event("deleted", str(entity_id), entity.entity_type)
+        await publish_entity_event(
+            "deleted",
+            str(entity_id),
+            entity.entity_type,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
+        )
         return True
+
+    # ------------------------------------------------------------------
+    # CARE library metadata mutations
+    # ------------------------------------------------------------------
+    #
+    # `favourite`, `run_count`, `last_run_at`, `display_name`, `description`
+    # are entity-level mutable fields — changing them does NOT create a
+    # new version. They power the CARE TUI library (sort by recency,
+    # pin favourites, free-form rename). See migration 003 / TODO §1.4.
+
+    async def set_favourite(
+        self, entity_id: uuid.UUID, value: bool = True
+    ) -> Entity | None:
+        """Toggle or set the `favourite` flag on an entity.
+
+        Returns the updated entity, or None if entity is missing or
+        soft-deleted.
+        """
+        stmt = select(Entity).where(
+            Entity.entity_id == entity_id, Entity.deleted_at.is_(None)
+        )
+        result = await self.db.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            return None
+
+        entity.favourite = bool(value)
+        await self.db.commit()
+        await self.db.refresh(entity)
+        await publish_entity_event(
+            "favourite_toggled",
+            str(entity.entity_id),
+            entity.entity_type,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
+        )
+        return entity
+
+    async def record_run(
+        self, entity_id: uuid.UUID, run_id: str | None = None
+    ) -> Entity | None:
+        """Record that an entity was executed: bump ``run_count`` and
+        set ``last_run_at = now()``.
+
+        ``run_id`` is accepted for forthcoming idempotency (a Redis LRU
+        of recent run_ids will dedupe accidental double-bumps) but is
+        currently a documentation slot only — TODO §1.4 in-memory LRU.
+
+        Returns the updated entity, or None if entity is missing or
+        soft-deleted.
+        """
+        stmt = select(Entity).where(
+            Entity.entity_id == entity_id, Entity.deleted_at.is_(None)
+        )
+        result = await self.db.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            return None
+
+        entity.run_count = (entity.run_count or 0) + 1
+        entity.last_run_at = datetime.now(timezone.utc)
+        await self.db.commit()
+        await self.db.refresh(entity)
+        await publish_entity_event(
+            "run_recorded",
+            str(entity.entity_id),
+            entity.entity_type,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
+        )
+        return entity
+
+    async def update_metadata(
+        self,
+        entity_id: uuid.UUID,
+        *,
+        display_name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+        favourite: bool | None = None,
+    ) -> Entity | None:
+        """Partial update of CARE-mutable entity fields.
+
+        Each parameter is applied only when explicitly provided (use
+        ``None`` to skip). Does NOT create a new entity version — these
+        fields are entity-level mutable slots, not content. Returns the
+        updated entity, or None if entity is missing or soft-deleted.
+        """
+        stmt = select(Entity).where(
+            Entity.entity_id == entity_id, Entity.deleted_at.is_(None)
+        )
+        result = await self.db.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            return None
+
+        mutated = False
+        if display_name is not None:
+            entity.display_name = display_name[:200]
+            mutated = True
+        if description is not None:
+            entity.description = description
+            mutated = True
+        if tags is not None:
+            entity.tags = list(tags)
+            mutated = True
+        if favourite is not None:
+            entity.favourite = bool(favourite)
+            mutated = True
+
+        await self.db.commit()
+        await self.db.refresh(entity)
+        # Only emit when at least one field actually changed — a PATCH
+        # with all-None kwargs is a no-op the library shouldn't react to.
+        if mutated:
+            await publish_entity_event(
+                "metadata_updated",
+                str(entity.entity_id),
+                entity.entity_type,
+                namespace=entity.namespace,
+                tags=list(entity.tags or []),
+            )
+        return entity
 
     async def list_versions(
         self,
@@ -434,15 +665,58 @@ class EntityService:
         limit: int = 100,
         cursor: str | None = None,
         offset: int = 0,
+        *,
+        sort_by: str = "created_at",
+        sort_dir: str = "asc",
+        favourites_only: bool = False,
+        tags: list[str] | None = None,
+        q: str | None = None,
+        namespace: str | None = None,
     ) -> tuple[list[tuple[Entity, EntityVersion]], str | None, bool]:
-        """List entities of a specific type for an exact channel using keyset or offset pagination."""
+        """List entities of a specific type for an exact channel using keyset or offset pagination.
+
+        New CARE-library knobs (P0 §1.4):
+          * ``sort_by``       — ``"created_at"`` (default) / ``"last_run_at"``
+                                 / ``"run_count"`` / ``"display_name"``.
+          * ``sort_dir``      — ``"asc"`` (default) / ``"desc"``.
+          * ``favourites_only`` — restrict to ``favourite = TRUE``.
+          * ``tags``          — restrict to entities whose ``tags`` JSONB
+                                 array contains ALL listed tokens
+                                 (PostgreSQL ``?&`` operator).
+          * ``q``             — case-insensitive substring match across
+                                 ``display_name``, ``name``, and
+                                 ``description``.
+          * ``namespace``     — restrict to a single CARE namespace.
+
+        Cursor pagination only works for the default sort
+        (``created_at`` asc); other sort variants force offset
+        pagination (cursor is silently ignored).
+        """
         stmt = select(Entity).where(
             Entity.entity_type == entity_type,
             Entity.deleted_at.is_(None),
             Entity.channels.op("?")(channel),
         )
 
-        if cursor is not None:
+        if favourites_only:
+            stmt = stmt.where(Entity.favourite.is_(True))
+        if namespace is not None:
+            stmt = stmt.where(Entity.namespace == namespace)
+        if tags:
+            stmt = stmt.where(Entity.tags.op("?&")(list(tags)))
+        if q:
+            like = f"%{q}%"
+            stmt = stmt.where(
+                or_(
+                    Entity.display_name.ilike(like),
+                    Entity.name.ilike(like),
+                    Entity.description.ilike(like),
+                )
+            )
+
+        default_sort = sort_by == "created_at" and sort_dir.lower() == "asc"
+
+        if cursor is not None and default_sort:
             cursor_created_at, cursor_entity_id = _decode_cursor(
                 cursor,
                 entity_type=entity_type,
@@ -458,8 +732,17 @@ class EntityService:
                 )
             )
 
+        sort_column_map = {
+            "created_at": Entity.created_at,
+            "last_run_at": Entity.last_run_at,
+            "run_count": Entity.run_count,
+            "display_name": Entity.display_name,
+        }
+        sort_column = sort_column_map.get(sort_by, Entity.created_at)
+        descending = sort_dir.lower() == "desc"
+        primary = sort_column.desc().nullslast() if descending else sort_column.asc()
         stmt = (
-            stmt.order_by(Entity.created_at.asc(), Entity.entity_id.asc())
+            stmt.order_by(primary, Entity.entity_id.asc())
             .offset(offset)
             .limit(limit + 1)
         )
@@ -491,7 +774,10 @@ class EntityService:
             items.append((entity, version))
 
         next_cursor = None
-        if has_more:
+        # Only emit a cursor for the default sort — the cursor encoding
+        # depends on `(created_at, entity_id)` and is meaningless once
+        # the ORDER BY changes shape.
+        if has_more and default_sort:
             last_entity = page_entities[-1]
             next_cursor = _encode_cursor(
                 last_entity.created_at,
@@ -509,6 +795,243 @@ class EntityService:
         stmt = select(EntityVersion).where(EntityVersion.version_id == version_id)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_lineage(
+        self,
+        entity_id: uuid.UUID,
+        *,
+        channel: str = "latest",
+        version_id: uuid.UUID | None = None,
+        max_depth: int = 10,
+    ) -> dict | None:
+        """Walk the ancestry DAG of a single entity version.
+
+        BFS through ``entity_versions.parents``. Starts from the
+        version pinned to ``channel`` on the entity (when ``version_id``
+        is None) or the explicit ``version_id``. Returns ``None`` if
+        the entity or its starting version can't be resolved.
+
+        The result dict matches :class:`LineageResponse`:
+        ``{"entity_id", "root_version_id", "versions": [...],
+        "max_depth_reached": bool}`` where each version entry carries
+        its own ``parents`` list so callers can rebuild the DAG.
+        De-duplicated by ``version_id`` (a multi-parent crossover only
+        shows up once).
+        """
+        # Resolve the starting version.
+        if version_id is None:
+            entity_result = await self.get_entity(entity_id, channel)
+            if entity_result is None:
+                return None
+            _, start_version = entity_result
+            start_version_id = start_version.version_id
+        else:
+            start_version = await self.get_version(version_id)
+            if start_version is None or start_version.entity_id != entity_id:
+                return None
+            start_version_id = version_id
+
+        # BFS layer-by-layer through `parents`.
+        visited: dict[uuid.UUID, EntityVersion] = {start_version_id: start_version}
+        depth_of: dict[uuid.UUID, int] = {start_version_id: 0}
+        frontier: list[uuid.UUID] = list(start_version.parents or [])
+        for d in range(1, max_depth + 1):
+            if not frontier:
+                break
+            # Avoid re-fetching visited nodes.
+            to_fetch = [vid for vid in frontier if vid not in visited]
+            if not to_fetch:
+                break
+
+            stmt = select(EntityVersion).where(EntityVersion.version_id.in_(to_fetch))
+            res = await self.db.execute(stmt)
+            fetched = list(res.scalars().all())
+
+            next_frontier: list[uuid.UUID] = []
+            for ver in fetched:
+                visited[ver.version_id] = ver
+                depth_of.setdefault(ver.version_id, d)
+                for p in (ver.parents or []):
+                    if p not in visited:
+                        next_frontier.append(p)
+            frontier = next_frontier
+
+        # Did we hit the depth cap with more parents left to walk?
+        max_depth_reached = bool(frontier)
+
+        # Order: root first, then BFS layers (depth ascending, then by
+        # version_number desc within a layer for stable presentation).
+        ordered = sorted(
+            visited.values(),
+            key=lambda v: (depth_of[v.version_id], -(v.version_number or 0)),
+        )
+        versions_payload = [
+            {
+                "version_id": str(v.version_id),
+                "version_number": v.version_number,
+                "parents": [str(p) for p in (v.parents or [])],
+                "evolution_meta": v.evolution_meta,
+                "change_summary": v.change_summary,
+                "author": v.author,
+                "created_at": v.created_at,
+                "depth": depth_of[v.version_id],
+            }
+            for v in ordered
+        ]
+
+        return {
+            "entity_id": str(entity_id),
+            "root_version_id": str(start_version_id),
+            "versions": versions_payload,
+            "max_depth_reached": max_depth_reached,
+        }
+
+    @staticmethod
+    def _extract_objective_value(
+        evolution_meta: dict | None, objective: str
+    ) -> float | None:
+        """Pull a single objective scalar out of ``evolution_meta``.
+
+        ``objective == "fitness_score"`` is a special case: it reads the
+        standardised ``fitness_score`` field, falling back to the legacy
+        gigaevo-core ``fitness`` alias (matches the precedence
+        ``_extract_fitness`` uses for the auto-promoted ``evolved``
+        channel).
+
+        Any other ``objective`` looks up
+        ``evolution_meta.objectives[<objective>]`` — that's where the
+        standardised multi-objective dict lives (e.g.
+        ``{"accuracy": 0.91, "latency_ms": 1240}``).
+
+        Returns ``None`` when the value is absent or unparsable; callers
+        treat that as "this version doesn't carry the requested
+        objective" rather than ``0.0`` (which would be a misleading
+        comparison value).
+        """
+        if not evolution_meta:
+            return None
+        if objective == "fitness_score":
+            raw = evolution_meta.get("fitness_score")
+            if raw is None:
+                raw = evolution_meta.get("fitness")
+        else:
+            objectives = evolution_meta.get("objectives")
+            if not isinstance(objectives, dict):
+                return None
+            raw = objectives.get(objective)
+        try:
+            return float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    async def find_versions_beating(
+        self,
+        entity_id: uuid.UUID,
+        *,
+        baseline_channel: str = "stable",
+        objective: str = "fitness_score",
+        limit: int = 50,
+        sort_dir: str = "desc",
+    ) -> dict | None:
+        """Return all versions whose ``objective`` strictly beats the
+        baseline channel's pin.
+
+        Powers `GET /v1/chains/{id}/versions/beating`. The CARE use case
+        is "show me candidates I could promote to `stable`" — versions
+        that scored higher than the currently-blessed one on the chosen
+        metric.
+
+        Returns ``None`` if the entity is missing or soft-deleted (the
+        router turns that into 404). When the baseline channel isn't
+        pinned, or its pinned version doesn't carry the objective, the
+        method still returns a structured payload — with
+        ``baseline_value=None`` and ``winners=[]`` — so the caller can
+        render a useful "no baseline available" state instead of
+        guessing the reason from a 404.
+
+        Strict ``>`` comparison: ties keep the incumbent (matches the
+        ``evolved``-channel auto-promotion semantics, so the two
+        endpoints describe the same notion of "better").
+        """
+        # Resolve entity + baseline channel pin.
+        stmt = select(Entity).where(
+            Entity.entity_id == entity_id, Entity.deleted_at.is_(None)
+        )
+        result = await self.db.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            return None
+
+        baseline_version_id_str = (entity.channels or {}).get(baseline_channel)
+        baseline_version = None
+        if baseline_version_id_str:
+            try:
+                baseline_uuid = uuid.UUID(baseline_version_id_str)
+            except (ValueError, TypeError):
+                baseline_uuid = None
+            if baseline_uuid is not None:
+                baseline_version = await self.get_version(baseline_uuid)
+
+        baseline_value = (
+            self._extract_objective_value(baseline_version.evolution_meta, objective)
+            if baseline_version is not None
+            else None
+        )
+
+        # When the baseline can't be valued, there's nothing to compare
+        # against — return the structured "ill-defined" payload.
+        if baseline_value is None:
+            return {
+                "entity_id": str(entity_id),
+                "baseline_channel": baseline_channel,
+                "baseline_version_id": baseline_version_id_str,
+                "objective": objective,
+                "baseline_value": None,
+                "winners": [],
+            }
+
+        # Walk every version of the entity. Versions are normally a
+        # handful per chain — full scan is fine; pushing the filter
+        # into SQL would require a JSONB expression that varies by
+        # objective shape.
+        stmt = select(EntityVersion).where(EntityVersion.entity_id == entity_id)
+        result = await self.db.execute(stmt)
+        all_versions = list(result.scalars().all())
+
+        winners_payload: list[dict] = []
+        baseline_pinned_id = (
+            baseline_version.version_id if baseline_version is not None else None
+        )
+        for v in all_versions:
+            value = self._extract_objective_value(v.evolution_meta, objective)
+            if value is None or value <= baseline_value:
+                continue
+            # Exclude the baseline version itself (defensive; with strict
+            # > the baseline can't beat itself anyway).
+            if v.version_id == baseline_pinned_id:
+                continue
+            winners_payload.append({
+                "version_id": str(v.version_id),
+                "version_number": v.version_number,
+                "value": value,
+                "delta": value - baseline_value,
+                "author": v.author,
+                "created_at": v.created_at,
+                "change_summary": v.change_summary,
+            })
+
+        reverse = sort_dir == "desc"
+        winners_payload.sort(key=lambda w: w["value"], reverse=reverse)
+        winners_payload = winners_payload[:limit]
+
+        return {
+            "entity_id": str(entity_id),
+            "baseline_channel": baseline_channel,
+            "baseline_version_id": baseline_version_id_str,
+            "objective": objective,
+            "baseline_value": baseline_value,
+            "winners": winners_payload,
+        }
 
     async def diff_versions(
         self, from_version_id: uuid.UUID, to_version_id: uuid.UUID
@@ -570,7 +1093,13 @@ class EntityService:
         await self.db.commit()
 
         await publish_entity_event(
-            "pinned", str(entity_id), entity.entity_type, version_id, channel
+            "pinned",
+            str(entity_id),
+            entity.entity_type,
+            version_id,
+            channel,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
         )
         return True
 
@@ -599,7 +1128,13 @@ class EntityService:
         await self.db.commit()
 
         await publish_entity_event(
-            "promoted", str(entity_id), entity.entity_type, source_version, to_channel
+            "promoted",
+            str(entity_id),
+            entity.entity_type,
+            source_version,
+            to_channel,
+            namespace=entity.namespace,
+            tags=list(entity.tags or []),
         )
         return True
 
@@ -661,3 +1196,137 @@ class EntityService:
 
         await self.db.commit()
         return counts
+
+    async def find_duplicate_pairs(
+        self,
+        entity_type_singular: str,
+        *,
+        channel: str = "latest",
+        threshold: float = 0.95,
+        namespace: str | None = None,
+        limit: int = 50,
+    ) -> dict | None:
+        """Find near-duplicate pairs by cosine similarity of embeddings.
+
+        For each entity of ``entity_type_singular``, resolves the
+        ``channel`` pin to a specific version and reads its embedding.
+        Performs a self-join in SQL (using pgvector's ``<=>`` cosine
+        distance) and returns pairs whose similarity meets
+        ``threshold``. Pairs are canonicalised
+        (``a.entity_id < b.entity_id``) so each unordered pair shows
+        up at most once.
+
+        Returns ``None`` when ``settings.enable_vector_search`` is
+        disabled — the router maps that to ``503``. Returns a
+        structured empty payload (pairs=[]) when no entities have
+        embeddings, which the router serves as a normal 200 so
+        callers can treat "no duplicates yet" the same as "no
+        duplicates found".
+        """
+        if not settings.enable_vector_search:
+            return None
+
+        # ``e.channels`` is JSONB; ``->>`` returns text; cast to uuid.
+        # `e.namespace IS NOT DISTINCT FROM :namespace_param` is the
+        # NULL-safe equality we want when the caller passes None.
+        filters = [
+            "e.entity_type = :entity_type",
+            "e.deleted_at IS NULL",
+            "ev.embedding IS NOT NULL",
+            "(e.channels ->> :channel) IS NOT NULL",
+        ]
+        params: dict = {
+            "entity_type": entity_type_singular,
+            "channel": channel,
+            "threshold": threshold,
+            "limit": limit,
+        }
+        if namespace is not None:
+            filters.append("e.namespace = :namespace")
+            params["namespace"] = namespace
+
+        # Self-join the resolved channel-version-per-entity, restrict to
+        # pairs where the cosine similarity beats `threshold` and
+        # `a.entity_id < b.entity_id` (canonicalisation + drops the
+        # trivial self-match).
+        stmt = text(
+            f"""
+            WITH channel_versions AS (
+                SELECT
+                    e.entity_id,
+                    e.namespace,
+                    e.name,
+                    e.display_name,
+                    ev.version_id,
+                    ev.embedding
+                FROM entities AS e
+                JOIN entity_versions AS ev
+                  ON ev.version_id = ((e.channels ->> :channel)::uuid)
+                WHERE {" AND ".join(filters)}
+            )
+            SELECT
+                a.entity_id::text  AS a_entity_id,
+                a.version_id::text AS a_version_id,
+                a.name             AS a_name,
+                a.display_name     AS a_display_name,
+                a.namespace        AS a_namespace,
+                b.entity_id::text  AS b_entity_id,
+                b.version_id::text AS b_version_id,
+                b.name             AS b_name,
+                b.display_name     AS b_display_name,
+                b.namespace        AS b_namespace,
+                (1 - (a.embedding <=> b.embedding))::float AS similarity
+            FROM channel_versions a
+            JOIN channel_versions b
+              ON a.entity_id < b.entity_id
+            WHERE (1 - (a.embedding <=> b.embedding)) >= :threshold
+            ORDER BY similarity DESC, a.entity_id, b.entity_id
+            LIMIT :limit
+            """
+        )
+        result = await self.db.execute(stmt, params)
+        rows = result.mappings().all()
+
+        pairs = [
+            {
+                "entity_a": {
+                    "entity_id": row["a_entity_id"],
+                    "version_id": row["a_version_id"],
+                    "name": row["a_name"],
+                    "display_name": row["a_display_name"],
+                    "namespace": row["a_namespace"],
+                },
+                "entity_b": {
+                    "entity_id": row["b_entity_id"],
+                    "version_id": row["b_version_id"],
+                    "name": row["b_name"],
+                    "display_name": row["b_display_name"],
+                    "namespace": row["b_namespace"],
+                },
+                "similarity": float(row["similarity"]),
+                "suggestion": "merge",
+            }
+            for row in rows
+        ]
+        return {
+            "entity_type": entity_type_singular,
+            "channel": channel,
+            "threshold": threshold,
+            "pairs": pairs,
+        }
+
+
+def entity_metadata_kwargs(entity: Entity) -> dict:
+    """Return the CARE-library response fields for an entity.
+
+    Routers `**spread` this into ``EntityResponse(**...)`` so the five
+    library-metadata fields land on every typed response without
+    repeating the same boilerplate in each endpoint.
+    """
+    return {
+        "favourite": bool(entity.favourite),
+        "run_count": int(entity.run_count or 0),
+        "last_run_at": entity.last_run_at,
+        "display_name": entity.display_name,
+        "description": entity.description,
+    }

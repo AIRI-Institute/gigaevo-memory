@@ -25,6 +25,17 @@ DOCUMENT_KIND_DESCRIPTION_TASK_DESCRIPTION_SUMMARY = (
     "description_task_description_summary"
 )
 
+# AgentSkill document kinds. MAGE searches these to match a sub-goal
+# against installed skills: `skill_description` for fast name/desc
+# matches, `skill_instructions` for semantic-vector lookups against the
+# SKILL.md body, `skill_full` as a default BM25 catch-all, and
+# `skill_allowed_tools` for facet filtering ("skills that don't require
+# Bash"). See Memory TODO.md §1.5 / §4 and CARE PREPARE.md §1.5.
+DOCUMENT_KIND_SKILL_FULL = "skill_full"
+DOCUMENT_KIND_SKILL_DESCRIPTION = "skill_description"
+DOCUMENT_KIND_SKILL_INSTRUCTIONS = "skill_instructions"
+DOCUMENT_KIND_SKILL_ALLOWED_TOOLS = "skill_allowed_tools"
+
 DOCUMENT_KINDS = {
     DOCUMENT_KIND_FULL_CARD,
     DOCUMENT_KIND_DESCRIPTION,
@@ -32,7 +43,13 @@ DOCUMENT_KINDS = {
     DOCUMENT_KIND_EXPLANATION_SUMMARY,
     DOCUMENT_KIND_DESCRIPTION_EXPLANATION_SUMMARY,
     DOCUMENT_KIND_DESCRIPTION_TASK_DESCRIPTION_SUMMARY,
+    DOCUMENT_KIND_SKILL_FULL,
+    DOCUMENT_KIND_SKILL_DESCRIPTION,
+    DOCUMENT_KIND_SKILL_INSTRUCTIONS,
+    DOCUMENT_KIND_SKILL_ALLOWED_TOOLS,
 }
+
+INDEXED_ENTITY_TYPES = {"memory_card", "agent_skill"}
 
 
 @dataclass
@@ -101,6 +118,68 @@ def _build_full_card_text(content: dict[str, Any]) -> str:
     return "\n".join([part for part in parts if part.split(": ", 1)[1]])
 
 
+def derive_agent_skill_search_documents(content: dict[str, Any]) -> list[DerivedSearchDocument]:
+    """Derive search documents for an agent_skill entity.
+
+    Emits up to four document kinds (only the ones with non-empty text):
+      * ``skill_description`` — ``"<name>\\n<description>"`` for high-level
+        BM25 matching (MAGE's first-pass capability lookup).
+      * ``skill_instructions`` — the raw SKILL.md body; embedded for
+        vector search so "extract structured data from PDFs" matches
+        against the body of Anthropic's `pdf` skill.
+      * ``skill_full`` — combined name + description + instructions as
+        a default BM25 catch-all.
+      * ``skill_allowed_tools`` — the comma-joined `allowed_tools`
+        tokens (e.g. ``"Bash(python:*), Read, Write"``) for facet
+        filtering and tag-style queries.
+
+    Stores the skill's ``name`` (or ``uri`` fallback) in ``card_id`` so
+    the column doubles as a generic external-id slot for both card and
+    skill rows.
+    """
+    if not isinstance(content, dict):
+        return []
+
+    name = _stringify(content.get("name"))
+    description = _stringify(content.get("description"))
+    instructions = _stringify(content.get("instructions"))
+    allowed_tools = _stringify(content.get("allowed_tools"))
+    uri = _stringify(content.get("uri"))
+    external_id = name or uri
+
+    raw_docs = {
+        DOCUMENT_KIND_SKILL_DESCRIPTION: "\n".join(
+            [part for part in [name, description] if part]
+        ),
+        DOCUMENT_KIND_SKILL_INSTRUCTIONS: instructions,
+        DOCUMENT_KIND_SKILL_FULL: "\n".join(
+            [part for part in [name, description, instructions] if part]
+        ),
+        DOCUMENT_KIND_SKILL_ALLOWED_TOOLS: allowed_tools,
+    }
+
+    docs: list[DerivedSearchDocument] = []
+    for document_kind, text_content in raw_docs.items():
+        rendered = _stringify(text_content)
+        if not rendered:
+            continue
+        snippet = description or rendered.splitlines()[0]
+        docs.append(
+            DerivedSearchDocument(
+                document_kind=document_kind,
+                text_content=rendered,
+                card_id=external_id,
+                meta_json={
+                    "skill_name": name,
+                    "uri": uri,
+                    "snippet": snippet,
+                    "document_kind": document_kind,
+                },
+            )
+        )
+    return docs
+
+
 def derive_memory_card_search_documents(content: dict[str, Any]) -> list[DerivedSearchDocument]:
     if not isinstance(content, dict):
         return []
@@ -166,10 +245,15 @@ async def sync_entity_search_documents(
         )
     )
 
-    if entity.entity_type != "memory_card":
+    if entity.entity_type not in INDEXED_ENTITY_TYPES:
         return
 
-    documents = derive_memory_card_search_documents(version.content_json or {})
+    if entity.entity_type == "memory_card":
+        documents = derive_memory_card_search_documents(version.content_json or {})
+    elif entity.entity_type == "agent_skill":
+        documents = derive_agent_skill_search_documents(version.content_json or {})
+    else:  # pragma: no cover - guarded by INDEXED_ENTITY_TYPES check above
+        return
     if not documents:
         return
 

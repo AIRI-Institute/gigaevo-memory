@@ -32,8 +32,16 @@ async def publish_entity_event(
     entity_type: str,
     version_id: str | None = None,
     channel: str | None = None,
+    namespace: str | None = None,
+    tags: list[str] | None = None,
 ) -> None:
-    """Publish an entity change event to Redis."""
+    """Publish an entity change event to Redis.
+
+    ``namespace`` and ``tags`` are included in the payload so SSE
+    subscribers can filter by namespace or tags without re-fetching the
+    entity. They are optional for backward compat — older callers
+    keep working unchanged.
+    """
     r = await get_redis()
     event = {
         "event_type": event_type,
@@ -41,6 +49,8 @@ async def publish_entity_event(
         "entity_type": entity_type,
         "version_id": str(version_id) if version_id else None,
         "channel": channel,
+        "namespace": namespace,
+        "tags": list(tags) if tags else [],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await r.publish(CHANNEL, json.dumps(event))

@@ -1,7 +1,17 @@
-"""Agents browser/editor page for Gradio web UI with full version management."""
+"""Agents browser/editor page for Gradio web UI with full version management.
+
+The list view surfaces the CARE library metadata
+(``favourite``/``display_name``/``last_run_at``) so the Gradio UI
+matches what the CARE TUI shows. See iter #45 in TODO §1 P1.
+"""
 
 import gradio as gr
 from typing import Tuple, List
+from ..library_format import (
+    format_favourite,
+    format_last_run,
+    pick_display_name,
+)
 from .base import (
     parse_json_content,
     extract_entity_fields,
@@ -44,13 +54,17 @@ def agents_tab(client):
             for agent in items:
                 entity_id = agent.get("entity_id", "")
                 meta = agent.get("meta", {})
-                name = meta.get("name", "N/A") if isinstance(meta, dict) else "N/A"
+                name = pick_display_name(meta, agent.get("display_name"))
                 channel = agent.get("channel", "latest")
                 tags = ", ".join(meta.get("tags", [])) if isinstance(meta, dict) else ""
                 version_id = (
                     agent.get("version_id", "")[:8] if agent.get("version_id") else ""
                 )
-                table_data.append([entity_id, name, channel, version_id, tags])
+                fav = format_favourite(agent.get("favourite"))
+                last_run = format_last_run(agent.get("last_run_at"))
+                table_data.append(
+                    [fav, entity_id, name, last_run, channel, version_id, tags]
+                )
                 raw_data.append(agent)
 
             return create_refresh_result(
@@ -225,12 +239,12 @@ def agents_tab(client):
             gr.Markdown("### 🤖 Agents Library")
 
             agents_list = gr.Dataframe(
-                headers=["ID", "Name", "Channel", "Version", "Tags"],
-                datatype=["str", "str", "str", "str", "str"],
+                headers=["⭐", "ID", "Name", "Last Run", "Channel", "Version", "Tags"],
+                datatype=["str", "str", "str", "str", "str", "str", "str"],
                 row_count=15,
-                column_count=5,
+                column_count=7,
                 interactive=False,
-                label="Agents",
+                label="Agents (favourite ⭐ first, recent runs surfaced)",
             )
 
             with gr.Row():

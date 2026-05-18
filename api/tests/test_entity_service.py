@@ -173,12 +173,19 @@ class TestValidEntityTypes:
         assert "chains" in VALID_ENTITY_TYPES
         assert "steps" in VALID_ENTITY_TYPES
         assert "agents" in VALID_ENTITY_TYPES
+        assert "agent_skills" in VALID_ENTITY_TYPES
         assert "memory_cards" in VALID_ENTITY_TYPES
-        
+
         assert VALID_ENTITY_TYPES["chains"] == "chain"
         assert VALID_ENTITY_TYPES["steps"] == "step"
         assert VALID_ENTITY_TYPES["agents"] == "agent"
+        assert VALID_ENTITY_TYPES["agent_skills"] == "agent_skill"
         assert VALID_ENTITY_TYPES["memory_cards"] == "memory_card"
+
+    def test_agent_skill_fits_db_column(self):
+        """`agent_skill` singular must fit `entity_type VARCHAR(20)`."""
+        for singular in VALID_ENTITY_TYPES.values():
+            assert len(singular) <= 20, f"{singular!r} exceeds VARCHAR(20)"
 
 
 class TestEntityServiceBasic:

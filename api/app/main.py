@@ -5,7 +5,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from .events.publisher import close_redis, get_redis
-from .routers import agents, chains, embeddings, memory_cards, entities, events, health, steps, unified_search, versions
+from .metrics import metrics_middleware
+from .metrics import router as metrics_router
+from .routers import (
+    agent_skills,
+    agents,
+    bulk,
+    chains,
+    dedup,
+    embeddings,
+    entities,
+    events,
+    health,
+    memory_cards,
+    steps,
+    unified_search,
+    versions,
+)
 
 
 @asynccontextmanager
@@ -25,14 +41,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Metrics: record counter + histogram for every request EXCEPT /metrics
+# itself. Registered before any router so it wraps the full handler
+# stack; the middleware skips its own scrape path internally.
+app.middleware("http")(metrics_middleware)
+
 # Operational endpoints (no /v1 prefix)
 app.include_router(health.router)
+app.include_router(metrics_router)
+
+# Semantic deduplication. MUST be registered before the typed entity
+# routers — its path is `/v1/{entity_type}/duplicates`, and the typed
+# routers declare `/v1/{type}/{entity_id}` which would otherwise try
+# to parse the literal `"duplicates"` as a UUID and 422 the request.
+app.include_router(dedup.router, prefix="/v1")
 
 # Typed entity endpoints (recommended)
 app.include_router(steps.router)
 app.include_router(chains.router)
 app.include_router(agents.router)
+app.include_router(agent_skills.router)
 app.include_router(memory_cards.router)
+
+# Bulk import (CARE's `care import` consumer)
+app.include_router(bulk.router, prefix="/v1", tags=["bulk"])
 
 # Generic entity endpoints (deprecated but kept for backward compatibility)
 app.include_router(entities.router, prefix="/v1", tags=["entities (deprecated)"])

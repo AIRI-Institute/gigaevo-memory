@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gigaevo-memory"
+version = "0.3.1"
+description = "Legacy import shim for gigaevo-client. Install gigaevo-client directly for new projects."
+readme = "README.md"
+license = "MIT"
+requires-python = ">= 3.12"
+authors = [{ name = "Glazkoff", email = "glazkov@airi.net" }]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "gigaevo-client>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "ruff"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gigaevo_memory"]
+
+[tool.ruff]
+line-length = 120

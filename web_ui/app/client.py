@@ -1,19 +1,25 @@
-"""Memory client wrapper for Gradio web UI using gigaevo_memory client."""
+"""Memory client wrapper for Gradio web UI using the gigaevo_client SDK.
+
+Migrated from ``gigaevo_memory`` → ``gigaevo_client`` in iter #44
+(see TODO §2.2 P2). The legacy ``gigaevo_memory`` import path still
+works via the shim, but production code should use the canonical
+``gigaevo_client`` name so the deprecation warning never fires in CI.
+"""
 
 import logging
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Add client/python/src to path for local gigaevo_memory import (for local dev)
-# In Docker, gigaevo_memory is installed via pip, so this path won't exist
-# noqa: E402 (intentional - must come before gigaevo_memory imports)
+# Add client/python/src to path for local gigaevo_client import (for local dev)
+# In Docker, gigaevo_client is installed via pip, so this path won't exist
+# noqa: E402 (intentional - must come before gigaevo_client imports)
 _client_src = Path(__file__).parent.parent.parent / "client" / "python" / "src"
 if _client_src.exists() and str(_client_src) not in sys.path:
     sys.path.insert(0, str(_client_src))
 
-from gigaevo_memory import MemoryClient  # noqa: E402
-from gigaevo_memory.exceptions import MemoryError as GigaevoMemoryError  # noqa: E402
+from gigaevo_client import GigaEvoClient  # noqa: E402
+from gigaevo_client.exceptions import MemoryError as GigaevoMemoryError  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +30,18 @@ class MemoryClientError(Exception):
 
 
 class MemoryClientWrapper:
-    """Thin wrapper around gigaevo_memory.MemoryClient for web UI compatibility."""
+    """Thin wrapper around gigaevo_client.GigaEvoClient for web UI compatibility."""
 
     def __init__(self, base_url: str, timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
-        self._client = MemoryClient(
+        self._client = GigaEvoClient(
             base_url=self.base_url,
             timeout=timeout,
         )
-        logger.info(f"MemoryClient initialized with base_url={self.base_url}")
+        logger.info(f"GigaEvoClient initialized with base_url={self.base_url}")
 
     def _handle_error(self, e: Exception, operation: str) -> None:
-        """Convert gigaevo_memory exceptions to web UI friendly format."""
+        """Convert gigaevo_client exceptions to web UI friendly format."""
         if isinstance(e, GigaevoMemoryError):
             raise MemoryClientError(f"{operation}: {str(e)}")
         else:
@@ -43,7 +49,17 @@ class MemoryClientWrapper:
             raise MemoryClientError(f"{operation} failed: {type(e).__name__}: {e}")
 
     def _entity_to_dict(self, entity) -> Dict:
-        """Convert EntityResponse to dict format expected by UI."""
+        """Convert EntityResponse to dict format expected by UI.
+
+        Includes the CARE library metadata fields (``favourite``,
+        ``run_count``, ``last_run_at``, ``display_name``,
+        ``description``) so the Gradio Chains/Agents pages can render
+        the same shape the CARE TUI does. Each library field uses
+        ``getattr(..., default)`` so older response payloads without
+        the fields still produce a sensible dict (favourite=False,
+        run_count=0, the rest None).
+        """
+        last_run_at = getattr(entity, "last_run_at", None)
         return {
             "entity_id": entity.entity_id,
             "entity_type": entity.entity_type,
@@ -52,6 +68,14 @@ class MemoryClientWrapper:
             "etag": entity.etag,
             "meta": entity.meta,
             "content": entity.content,
+            "favourite": getattr(entity, "favourite", False),
+            "run_count": getattr(entity, "run_count", 0),
+            # Render datetimes as ISO strings — Gradio Dataframe cells
+            # are strings, and downstream callers can parse back if
+            # needed. None survives unchanged.
+            "last_run_at": last_run_at.isoformat() if last_run_at else None,
+            "display_name": getattr(entity, "display_name", None),
+            "description": getattr(entity, "description", None),
         }
 
     # Chains
@@ -179,6 +203,48 @@ class MemoryClientWrapper:
             return self._client.delete_agent(agent_id)
         except Exception as e:
             self._handle_error(e, f"DELETE /v1/agents/{agent_id}")
+
+    # Agent Skills
+    def get_agent_skills(self, limit: int = 50, offset: int = 0) -> List[Dict]:
+        """List all agent_skills with pagination."""
+        try:
+            entities = self._client.list_agent_skills(limit=limit, offset=offset)
+            return [self._entity_to_dict(e) for e in entities]
+        except Exception as e:
+            self._handle_error(e, "GET /v1/agent-skills")
+
+    def get_agent_skill(self, skill_id: str, channel: str = "latest") -> Dict:
+        """Get a specific agent_skill by ID."""
+        try:
+            entity = self._client.get_agent_skill_dict(skill_id, channel=channel)
+            return {"content": entity, "entity_id": skill_id}
+        except Exception as e:
+            self._handle_error(e, f"GET /v1/agent-skills/{skill_id}")
+
+    def save_agent_skill(self, data: dict) -> Dict:
+        """Create or update an agent_skill."""
+        try:
+            entity_id = data.get("entity_id")
+            meta = data.get("meta", {})
+            ref = self._client.save_agent_skill(
+                skill=data["content"],
+                name=meta.get("name", "Unnamed"),
+                tags=meta.get("tags", []),
+                when_to_use=meta.get("when_to_use"),
+                author=meta.get("author"),
+                entity_id=entity_id,
+                channel=data.get("channel", "latest"),
+            )
+            return {"entity_id": ref.entity_id, "version_id": ref.version_id}
+        except Exception as e:
+            self._handle_error(e, "SAVE agent_skill")
+
+    def delete_agent_skill(self, skill_id: str) -> bool:
+        """Delete an agent_skill."""
+        try:
+            return self._client.delete_agent_skill(skill_id)
+        except Exception as e:
+            self._handle_error(e, f"DELETE /v1/agent-skills/{skill_id}")
 
     # Memory Cards
     def get_memory_cards(self, limit: int = 50, offset: int = 0) -> List[Dict]:
@@ -328,7 +394,7 @@ class MemoryClientWrapper:
             Search results dictionary with 'hits' and 'total'
         """
         try:
-            from gigaevo_memory import SearchType as ClientSearchType
+            from gigaevo_client import SearchType as ClientSearchType
             search_type_enum = ClientSearchType(search_type)
 
             results = self._client.search(
@@ -390,7 +456,7 @@ class MemoryClientWrapper:
             Batch search results with 'results' list and 'total_queries'
         """
         try:
-            from gigaevo_memory import SearchType as ClientSearchType
+            from gigaevo_client import SearchType as ClientSearchType
             search_type_enum = ClientSearchType(search_type)
 
             results = self._client.batch_search(
@@ -444,4 +510,4 @@ class MemoryClientWrapper:
     def close(self):
         """Close the HTTP client."""
         self._client.close()
-        logger.info("MemoryClient closed")
+        logger.info("GigaEvoClient closed")

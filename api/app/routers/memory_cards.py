@@ -6,6 +6,12 @@ from typing import List
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import (
+    AuthContext,
+    default_namespace_for,
+    default_read_namespace_for,
+    require_api_key,
+)
 from ..db.session import get_db
 from ..models.requests import EntityCreateRequest, EntityUpdateRequest
 from ..models.responses import MemoryCardResponse
@@ -17,11 +23,19 @@ router = APIRouter(prefix="/v1/memory-cards", tags=["memory_cards"])
 @router.post("", status_code=201, response_model=MemoryCardResponse)
 async def create_memory_card(
     body: EntityCreateRequest,
+    auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new memory card entity with its first version."""
+    """Create a new memory card entity with its first version.
+
+    Authenticated callers that omit ``meta.namespace`` get their writes
+    auto-scoped to ``auth.owner`` via the shared
+    :func:`default_namespace_for` helper. Anonymous opt-in callers
+    keep the request body's namespace as-is.
+    """
     svc = EntityService(db)
     entity_type = "memory_cards"
+    namespace = default_namespace_for(body.meta.namespace, auth)
 
     evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
 
@@ -34,7 +48,7 @@ async def create_memory_card(
             tags=body.meta.tags,
             when_to_use=body.meta.when_to_use,
             author=body.meta.author,
-            namespace=body.meta.namespace,
+            namespace=namespace,
             channel=body.channel,
             evolution_meta=evolution_meta,
             parent_version_id=body.parent_version_id,
@@ -59,15 +73,25 @@ async def list_memory_cards(
     limit: int = 50,
     offset: int = 0,
     channel: str = "latest",
+    namespace: str | None = None,
+    auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all memory cards with pagination."""
+    """List all memory cards with pagination.
+
+    Authenticated callers without an explicit ``?namespace`` are
+    auto-scoped to ``auth.owner`` (mirrors writes-side auto-scoping;
+    bypass with the ``read:any`` scope). Anonymous callers in opt-in
+    deployments keep the "list everything" semantics.
+    """
+    effective_namespace = default_read_namespace_for(namespace, auth)
     svc = EntityService(db)
     items, _, _ = await svc.list_entities(
         entity_type="memory_card",
         limit=limit,
         offset=offset,
         channel=channel,
+        namespace=effective_namespace,
     )
     return [
         MemoryCardResponse(

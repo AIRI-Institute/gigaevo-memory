@@ -6,6 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import AuthContext, default_read_namespace_for, require_api_key
 from ..db.session import get_db
 from ..models.requests import EntityCreateRequest, EntityUpdateRequest
 from ..models.responses import StepResponse
@@ -59,15 +60,25 @@ async def list_steps(
     limit: int = 50,
     offset: int = 0,
     channel: str = "latest",
+    namespace: str | None = None,
+    auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all steps with pagination."""
+    """List all steps with pagination.
+
+    Authenticated callers without an explicit ``?namespace`` are
+    auto-scoped to ``auth.owner`` (mirrors writes-side auto-scoping;
+    bypass with the ``read:any`` scope). Anonymous callers in opt-in
+    deployments keep the "list everything" semantics.
+    """
+    effective_namespace = default_read_namespace_for(namespace, auth)
     svc = EntityService(db)
     items, _, _ = await svc.list_entities(
         entity_type="step",
         limit=limit,
         offset=offset,
         channel=channel,
+        namespace=effective_namespace,
     )
     return [
         StepResponse(

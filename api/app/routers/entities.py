@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import SCOPE_CLEAR_ALL, AuthContext, require_api_key
 from ..db.session import get_db
 from ..models.requests import EntityCreateRequest, EntityUpdateRequest
 from ..models.responses import EntityResponse
@@ -167,20 +168,61 @@ async def delete_entity(
         raise HTTPException(status_code=404, detail="Entity not found")
 
 
+#: Sentinel value clients must echo back in the `X-Confirm` header to
+#: authorise the destructive ``POST /v1/maintenance/clear-all``. The
+#: deliberately-long phrase makes the call un-mistakable in shell
+#: history and prevents accidental `curl -X POST ...` from a fat-finger.
+CLEAR_ALL_CONFIRM_TOKEN = "yes-i-really-mean-it"
+
+
 @router.post("/maintenance/clear-all")
 async def clear_all_entities(
     entity_type: str | None = None,
+    x_confirm: str | None = Header(default=None, alias="X-Confirm"),
+    auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     """Soft-delete all entities, optionally filtered by type.
 
+    **Destructive — protected by two independent guards:**
+
+    1. ``auth.require_scope("clear:all")`` — the caller must hold the
+       ``clear:all`` scope. Anonymous opt-in callers always 403 here
+       (empty scope set); a personal-key holder without the scope
+       also 403s. Only the deployment admin (or an explicitly-issued
+       maintenance key) can reach the handler body.
+    2. ``X-Confirm: yes-i-really-mean-it`` header — even when the
+       caller has the scope, the phrase must be typed verbatim so a
+       fat-fingered `curl` can't wipe CARE's library by accident.
+
+    The scope check runs **first** so unauthorised callers don't even
+    learn whether the X-Confirm token matches.
+
     Args:
-        entity_type: Optional entity type to clear (step, chain, agent, memory_card).
-                     If not provided, clears all entity types.
+        entity_type: Optional entity type to clear (step, chain, agent,
+            agent_skill, memory_card). If not provided, clears all
+            entity types.
 
     Returns:
         Dictionary with counts of deleted entities per type.
+
+    Raises:
+        HTTPException 403 Forbidden: when the caller lacks ``clear:all``.
+        HTTPException 412 Precondition Failed: when ``X-Confirm`` is
+            missing or has the wrong value.
+        HTTPException 400 Bad Request: when ``entity_type`` is invalid.
     """
+    auth.require_scope(SCOPE_CLEAR_ALL)
+
+    if x_confirm != CLEAR_ALL_CONFIRM_TOKEN:
+        raise HTTPException(
+            status_code=412,
+            detail=(
+                "Precondition Failed: clear_all is destructive and requires "
+                f"`X-Confirm: {CLEAR_ALL_CONFIRM_TOKEN}` header."
+            ),
+        )
+
     svc = EntityService(db)
 
     # Validate entity_type if provided

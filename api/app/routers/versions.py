@@ -3,11 +3,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.session import get_db
 from ..models.requests import PinRequest, PromoteRequest, RevertRequest
 from ..models.responses import DiffResponse, EntityResponse, VersionDetail, VersionInfo
+from ..services.diff_html import render_diff_html
 from ..services.entity_service import VALID_ENTITY_TYPES, EntityService, compute_etag
 
 router = APIRouter()
@@ -84,23 +86,45 @@ async def get_version(
     )
 
 
-@router.get(
-    "/{entity_type}/{entity_id}/diff",
-    response_model=DiffResponse,
-)
+@router.get("/{entity_type}/{entity_id}/diff")
 async def diff_versions(
     entity_type: str,
     entity_id: uuid.UUID,
     from_ver: uuid.UUID = Query(alias="from"),
     to_ver: uuid.UUID = Query(alias="to"),
+    format: str = Query(
+        "json",
+        pattern="^(json|html)$",
+        description=(
+            "Response format. ``json`` (default) returns a "
+            "``DiffResponse`` with the raw RFC-6902 ops; ``html`` "
+            "returns a self-contained browser-friendly page."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ):
-    """Compute a JSON patch between two versions."""
+    """Compute a JSON patch between two versions.
+
+    Defaults to JSON for programmatic callers (CARE TUI, MAGE).
+    Pass ``?format=html`` to get a styled HTML page suitable for
+    pasting a `curl` URL into a browser or embedding in a dashboard.
+    """
     _validate_type(entity_type)
     svc = EntityService(db)
     result = await svc.diff_versions(from_ver, to_ver)
     if result is None:
         raise HTTPException(status_code=404, detail="One or both versions not found")
+
+    if format == "html":
+        rendered = render_diff_html(
+            entity_type=entity_type,
+            entity_id=str(entity_id),
+            from_version=result["from_version"],
+            to_version=result["to_version"],
+            patch=result["patch"],
+        )
+        return HTMLResponse(content=rendered)
+
     return DiffResponse(
         from_version=result["from_version"],
         to_version=result["to_version"],

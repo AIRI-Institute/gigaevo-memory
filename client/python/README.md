@@ -1,14 +1,24 @@
-# gigaevo-memory
+# gigaevo-client
 
-Python client for the GigaEvo Memory Module: persistent storage for CARL artifacts such as chains, steps, agents, and memory cards.
+Unified Python SDK for the GigaEvo ecosystem: persistent memory for
+CARL artifacts (chains, steps, agents, memory cards, agent skills) plus
+the GigaEvo Platform API surface.
 
 `mmar-carl` is a required dependency and is installed automatically with the client.
+
+> **Renamed in 0.3.0.** The legacy distribution name `gigaevo-memory` is
+> now a meta-package that depends on `gigaevo-client`. Existing
+> `from gigaevo_memory import ...` call sites keep working through a
+> shim that emits one `DeprecationWarning` per process. New projects
+> should depend on `gigaevo-client` and import from `gigaevo_client`.
 
 ## Installation
 
 ```bash
-pip install gigaevo-memory
+pip install gigaevo-client
 ```
+
+Legacy installs (`pip install gigaevo-memory`) still work and transitively pull in `gigaevo-client`.
 
 For vector or hybrid search with the default local embedding provider, also install `sentence-transformers`:
 

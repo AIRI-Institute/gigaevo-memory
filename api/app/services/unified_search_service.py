@@ -7,14 +7,17 @@ by delegating to appropriate strategy implementations.
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..models.requests import SearchType
-from ..services.search_strategies.base import SearchRequest, SearchHit
+from ..services.search_strategies.base import SearchHit, SearchRequest
 from ..services.search_strategies.bm25_strategy import BM25SearchStrategy
 from ..services.search_strategies.hybrid_strategy import HybridSearchStrategy
+from ..services.search_strategies.reranker import Reranker, RerankerRegistry
 from ..services.search_strategies.vector_strategy import VectorSearchStrategy
 
 if TYPE_CHECKING:
@@ -25,18 +28,31 @@ class UnifiedSearchService:
     """Unified search service dispatcher.
 
     This service delegates search operations to appropriate strategies
-    based on the search_type parameter.
+    based on the search_type parameter. Hits returned by the primary
+    strategy are passed through an optional :class:`Reranker` (P2 §4
+    hook) before being serialised to the response.
     """
 
-    def __init__(self, db: AsyncSession, embedding_service: EmbeddingService | None = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        embedding_service: EmbeddingService | None = None,
+        reranker: Reranker | None = None,
+    ):
         """Initialize the search service.
 
         Args:
             db: Database session
             embedding_service: Optional embedding service for server-side embeddings
+            reranker: Optional second-pass reranker (defaults to the
+                kind named by ``settings.reranker_kind``, falling back
+                to :class:`IdentityReranker` when the kind is unknown).
         """
         self.db = db
         self._embedding_service = embedding_service
+        self._reranker: Reranker = reranker or RerankerRegistry.get(
+            settings.reranker_kind
+        )
 
         # Initialize strategies
         self._strategies = {
@@ -44,6 +60,23 @@ class UnifiedSearchService:
             SearchType.VECTOR: VectorSearchStrategy(db),
             SearchType.HYBRID: HybridSearchStrategy(db, embedding_service),
         }
+
+    async def _apply_reranker(
+        self, query: str | None, hits: list[SearchHit]
+    ) -> list[SearchHit]:
+        """Run hits through the configured reranker.
+
+        Tolerates both async and sync ``rerank`` implementations so
+        out-of-tree contributors can write the simpler sync form.
+        Empty hit lists short-circuit (no point invoking a model on
+        nothing).
+        """
+        if not hits:
+            return hits
+        out = self._reranker.rerank(query, hits)
+        if inspect.isawaitable(out):
+            return await out
+        return out  # type: ignore[return-value]
 
     async def search(
         self,
@@ -99,6 +132,9 @@ class UnifiedSearchService:
 
         # Delegate to strategy
         hits = await strategy.search(request)
+
+        # Run the second-pass reranker over the retrieved hits.
+        hits = await self._apply_reranker(query, hits)
 
         # Convert to dicts for backward compatibility
         return [self._hit_to_dict(hit) for hit in hits]
@@ -167,10 +203,18 @@ class UnifiedSearchService:
         # Execute all searches in parallel
         results = await asyncio.gather(*tasks)
 
+        # Rerank each query's hits independently (one model call per
+        # query — running them in parallel matches the search shape).
+        rerank_tasks = [
+            self._apply_reranker(queries[i], hits)
+            for i, hits in enumerate(results)
+        ]
+        reranked = await asyncio.gather(*rerank_tasks)
+
         # Convert to dicts
         return [
             [self._hit_to_dict(hit) for hit in hits]
-            for hits in results
+            for hits in reranked
         ]
 
     def _hit_to_dict(self, hit: SearchHit) -> dict:
