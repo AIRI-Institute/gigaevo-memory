@@ -175,6 +175,136 @@ class TestPlatformClientErrorPropagation:
         assert exc.value.response.status_code == 404
 
 
+# ---------------------------------------------------------------------------
+# Evolution inspection (CARE PREPARE §2.6, Platform §4.2 / §4.4)
+# ---------------------------------------------------------------------------
+
+
+class TestGetEvolution:
+    @respx.mock
+    def test_get_evolution_returns_state(self, client):
+        payload = {
+            "evolution_id": "ev-1",
+            "status": "running",
+            "generation": 3,
+            "best_fitness": 0.87,
+        }
+        route = respx.get(f"{BASE}/api/v1/evolutions/ev-1").mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        assert client.get_evolution("ev-1") == payload
+        assert route.called
+
+    @respx.mock
+    def test_get_evolution_404_raises(self, client):
+        respx.get(f"{BASE}/api/v1/evolutions/missing").mock(
+            return_value=httpx.Response(404, json={"detail": "not found"})
+        )
+        with pytest.raises(httpx.HTTPStatusError) as exc:
+            client.get_evolution("missing")
+        assert exc.value.response.status_code == 404
+
+
+class TestListIndividuals:
+    @respx.mock
+    def test_list_individuals_returns_list(self, client):
+        payload = [
+            {"individual_id": "ind-1", "fitness": 0.91, "generation": 3},
+            {"individual_id": "ind-2", "fitness": 0.83, "generation": 3},
+        ]
+        route = respx.get(
+            f"{BASE}/api/v1/evolutions/ev-1/individuals"
+        ).mock(return_value=httpx.Response(200, json=payload))
+        assert client.list_individuals("ev-1") == payload
+        assert route.called
+
+    @respx.mock
+    def test_list_individuals_empty_population(self, client):
+        respx.get(f"{BASE}/api/v1/evolutions/ev-empty/individuals").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        assert client.list_individuals("ev-empty") == []
+
+
+class TestAcceptIndividual:
+    @respx.mock
+    def test_accept_individual_forwards_id_in_body(self, client):
+        captured = {}
+
+        def _handler(request):
+            import json
+
+            captured["body"] = json.loads(request.content)
+            return httpx.Response(
+                200,
+                json={"evolution_id": "ev-1", "accepted_individual": "ind-7"},
+            )
+
+        respx.post(f"{BASE}/api/v1/evolutions/ev-1/accept").mock(
+            side_effect=_handler
+        )
+        result = client.accept_individual("ev-1", "ind-7")
+        assert result == {
+            "evolution_id": "ev-1",
+            "accepted_individual": "ind-7",
+        }
+        assert captured["body"] == {"individual_id": "ind-7"}
+
+    @respx.mock
+    def test_accept_individual_idempotent_same_id(self, client):
+        """Same individual id twice returns the same shape — the SDK
+        is a passthrough; idempotency is a server contract that the
+        SDK doesn't need to enforce, but we verify a second call
+        doesn't blow up locally."""
+        respx.post(f"{BASE}/api/v1/evolutions/ev-1/accept").mock(
+            return_value=httpx.Response(
+                200,
+                json={"evolution_id": "ev-1", "accepted_individual": "ind-7"},
+            )
+        )
+        first = client.accept_individual("ev-1", "ind-7")
+        second = client.accept_individual("ev-1", "ind-7")
+        assert first == second
+
+    @respx.mock
+    def test_accept_individual_409_on_switch(self, client):
+        """Switching to a different id after a prior accept yields
+        ``409 Conflict``. The SDK surfaces that as
+        ``httpx.HTTPStatusError`` so callers can read the
+        currently-accepted id off ``exc.response.json()``."""
+        respx.post(f"{BASE}/api/v1/evolutions/ev-1/accept").mock(
+            return_value=httpx.Response(
+                409,
+                json={
+                    "detail": "already accepted",
+                    "accepted_individual": "ind-3",
+                },
+            )
+        )
+        with pytest.raises(httpx.HTTPStatusError) as exc:
+            client.accept_individual("ev-1", "ind-7")
+        assert exc.value.response.status_code == 409
+        assert exc.value.response.json()["accepted_individual"] == "ind-3"
+
+    @respx.mock
+    def test_accept_individual_sends_api_key(self):
+        c = PlatformClient(api_key="sk-evo-accept")
+        captured = {}
+
+        def _handler(request):
+            captured["header"] = request.headers.get("X-API-Key")
+            return httpx.Response(
+                200,
+                json={"evolution_id": "ev-1", "accepted_individual": "ind-7"},
+            )
+
+        respx.post(f"{BASE}/api/v1/evolutions/ev-1/accept").mock(
+            side_effect=_handler
+        )
+        c.accept_individual("ev-1", "ind-7")
+        assert captured["header"] == "sk-evo-accept"
+
+
 class TestPlatformClientAuthHeader:
     @respx.mock
     def test_api_key_sent_on_every_request(self):

@@ -27,7 +27,7 @@ def sample_chain_dict():
                 "stage_action": "Identify and list all financial metrics",
                 "example_reasoning": "Revenue of $2.5M with 15% growth",
                 "step_config": None,
-                "llm_config": {"model": "openai/gpt-4o", "temperature": 0.2, "endpoint_key": None, "max_tokens": None},
+                "llm_config": {"model": "openai/gpt-4o", "temperature": 0.2, "max_tokens": None},
             },
             {
                 "number": 2,
@@ -53,7 +53,7 @@ def sample_chain_dict():
                 "stage_action": "Analyze each challenge",
                 "example_reasoning": "Supply chain issues may affect delivery",
                 "step_config": None,
-                "llm_config": {"model": None, "temperature": None, "endpoint_key": "fast_model", "max_tokens": None},
+                "llm_config": {"model": None, "temperature": None, "max_tokens": None},
             },
             {
                 "number": 4,

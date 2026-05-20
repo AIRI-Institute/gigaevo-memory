@@ -65,6 +65,40 @@ class Settings(BaseSettings):
     sse_warn_lag_seconds: float = 10.0
     sse_drop_lag_seconds: float = 60.0
 
+    # CORS (CARE PREPARE §1.9). Comma-separated list of allowed
+    # origins for browser clients. ``"*"`` (the default) is permissive
+    # for local dev but the FastAPI / Starlette stack will silently
+    # disable credentialed CORS when the list is a wildcard; explicit
+    # origins are required for cookie-bearing or ``X-API-Key`` flows
+    # from a browser. Production deployments should set
+    # ``CORS_ALLOWED_ORIGINS=https://care.example,https://app.example``.
+    cors_allowed_origins: str = "*"
+    cors_allow_credentials: bool = True
+    cors_allowed_methods: str = "*"
+    cors_allowed_headers: str = "*"
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        """Parse ``cors_allowed_origins`` into a list of stripped tokens."""
+        raw = self.cors_allowed_origins.strip()
+        if not raw:
+            return []
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+    @property
+    def cors_allowed_methods_list(self) -> list[str]:
+        raw = self.cors_allowed_methods.strip()
+        if not raw:
+            return []
+        return [m.strip() for m in raw.split(",") if m.strip()]
+
+    @property
+    def cors_allowed_headers_list(self) -> list[str]:
+        raw = self.cors_allowed_headers.strip()
+        if not raw:
+            return []
+        return [h.strip() for h in raw.split(",") if h.strip()]
+
     model_config = {"env_prefix": "", "case_sensitive": False}
 
 

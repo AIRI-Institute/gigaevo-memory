@@ -3,7 +3,9 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
+from .config import settings
 from .events.publisher import close_redis, get_redis
 from .metrics import metrics_middleware
 from .metrics import router as metrics_router
@@ -39,6 +41,20 @@ app = FastAPI(
     description="Persistent memory for CARL artifacts: steps, chains, agents, memory cards",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS (CARE PREPARE §1.9). Registered before the metrics middleware so
+# preflight requests bypass route handlers entirely. Starlette's
+# CORSMiddleware silently disables credentialed responses when the
+# allowed-origins list is `["*"]`; setting `CORS_ALLOWED_ORIGINS` to an
+# explicit comma-separated list is required for browser clients that
+# need `X-API-Key` or cookies.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins_list,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.cors_allowed_methods_list,
+    allow_headers=settings.cors_allowed_headers_list,
 )
 
 # Metrics: record counter + histogram for every request EXCEPT /metrics

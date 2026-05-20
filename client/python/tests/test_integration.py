@@ -67,7 +67,15 @@ class TestClearAll:
     def test_clear_all(self, client):
         with respx.mock:
             respx.post("http://test-api:8000/v1/maintenance/clear-all").mock(
-                return_value=httpx.Response(200, json={"chain": 5, "agent": 3})
+                return_value=httpx.Response(
+                    200, json={"deleted": {"chain": 5, "agent": 3}}
+                )
             )
-            result = client.clear_all()
+            result = client.clear_all(confirm=True)
             assert result["chain"] == 5
+
+    def test_clear_all_refuses_without_confirm(self, client):
+        """Safety: bare `client.clear_all()` must raise before any
+        HTTP call (no respx mock needed)."""
+        with pytest.raises(ValueError, match="confirm=True"):
+            client.clear_all()

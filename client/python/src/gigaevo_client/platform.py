@@ -135,6 +135,50 @@ class PlatformClient:
         return self._post("/api/v1/evolutions", json=spec)
 
     # -----------------------------------------------------------------
+    # Evolution inspection (CARE PREPARE §2.6, Platform §4.2 / §4.4)
+    # -----------------------------------------------------------------
+
+    def get_evolution(self, evolution_id: str) -> dict[str, Any]:
+        """Wrap ``GET /api/v1/evolutions/{id}``.
+
+        Returns the current evolution state: generation counter,
+        best-of-generation history, Pareto front, status (`queued` /
+        `running` / `completed` / `failed` / `cancelled`).
+        """
+        return self._get(f"/api/v1/evolutions/{evolution_id}")
+
+    def list_individuals(
+        self, evolution_id: str
+    ) -> list[dict[str, Any]]:
+        """Wrap ``GET /api/v1/evolutions/{id}/individuals``.
+
+        Returns one dict per individual in the population, with
+        fitness scores + lineage metadata. Order is server-defined
+        (Pareto-rank-then-crowding for multi-objective; descending
+        fitness for single-objective).
+        """
+        return self._get(f"/api/v1/evolutions/{evolution_id}/individuals")
+
+    def accept_individual(
+        self,
+        evolution_id: str,
+        individual_id: str,
+    ) -> dict[str, Any]:
+        """Wrap ``POST /api/v1/evolutions/{id}/accept``.
+
+        Promotes ``individual_id`` to Memory's ``stable`` channel.
+        Idempotent on the same ``individual_id``: calling twice with
+        the same id returns the same response. Switching to a
+        different id after a prior accept yields ``409 Conflict``;
+        callers should inspect ``exc.response.json()`` for the
+        currently-accepted id.
+        """
+        return self._post(
+            f"/api/v1/evolutions/{evolution_id}/accept",
+            json={"individual_id": individual_id},
+        )
+
+    # -----------------------------------------------------------------
     # Event stream
     # -----------------------------------------------------------------
 
