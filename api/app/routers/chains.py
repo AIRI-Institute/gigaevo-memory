@@ -40,8 +40,17 @@ def _validate_carl_dag(content: dict) -> None:
     - All step dependencies reference existing step numbers
     - The graph is acyclic (no circular dependencies)
     """
-    # Check required top-level fields
-    required_fields = ["version", "max_workers", "metadata", "search_config", "steps"]
+    # Check required top-level fields. The version field is canonically
+    # serialised by mmar-carl's ``ReasoningChain.to_dict`` as
+    # ``format_version`` (an int); accept either spelling so real
+    # MAGE/CARL-generated chains aren't rejected. Older fixtures use the
+    # legacy ``version`` key.
+    if "version" not in content and "format_version" not in content:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid CARL chain: missing required field 'version'",
+        )
+    required_fields = ["max_workers", "metadata", "search_config", "steps"]
     for field in required_fields:
         if field not in content:
             raise HTTPException(

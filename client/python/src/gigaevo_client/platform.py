@@ -138,6 +138,37 @@ class PlatformClient:
     # Evolution inspection (CARE PREPARE §2.6, Platform §4.2 / §4.4)
     # -----------------------------------------------------------------
 
+    def list_evolutions(
+        self,
+        *,
+        status: str | None = None,
+        tag: str | None = None,
+        q: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Wrap ``GET /api/v1/evolutions``.
+
+        Returns the paginated list envelope:
+        ``{"items": [...], "next_cursor": str | None,
+        "total_scanned": int}``. Items are ordered most-recent-first
+        by ``created_at``. ``status`` / ``tag`` / ``q`` filters
+        compose; ``cursor`` is the opaque token from a prior page's
+        ``next_cursor`` (pass it verbatim to advance).
+        """
+        params: dict[str, Any] = {}
+        if status is not None:
+            params["status"] = status
+        if tag is not None:
+            params["tag"] = tag
+        if q is not None:
+            params["q"] = q
+        if cursor is not None:
+            params["cursor"] = cursor
+        if limit is not None:
+            params["limit"] = limit
+        return self._get("/api/v1/evolutions", params=params or None)
+
     def get_evolution(self, evolution_id: str) -> dict[str, Any]:
         """Wrap ``GET /api/v1/evolutions/{id}``.
 
@@ -210,8 +241,8 @@ class PlatformClient:
     # HTTP helpers + lifecycle
     # -----------------------------------------------------------------
 
-    def _get(self, path: str) -> Any:
-        resp = self._http.get(path)
+    def _get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
+        resp = self._http.get(path, params=params)
         resp.raise_for_status()
         return resp.json()
 

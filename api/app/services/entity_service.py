@@ -8,7 +8,8 @@ import uuid
 from datetime import datetime, timezone
 
 import jsonpatch
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import Text, and_, cast, func, or_, select, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -703,7 +704,16 @@ class EntityService:
         if namespace is not None:
             stmt = stmt.where(Entity.namespace == namespace)
         if tags:
-            stmt = stmt.where(Entity.tags.op("?&")(list(tags)))
+            # `?&` is `jsonb ?& text[]` — the right operand MUST be a
+            # Postgres text[]. Without the explicit cast, SQLAlchemy
+            # infers the bind's type from the left column (JSONB) for a
+            # list operand, emitting `jsonb ?& jsonb` which Postgres
+            # rejects ("operator does not exist") → 500. Scalar operands
+            # like `channels.op("?")(channel)` dodge this because a str
+            # gets a String type, not the parent JSONB type.
+            stmt = stmt.where(
+                Entity.tags.op("?&")(cast(list(tags), ARRAY(Text)))
+            )
         if q:
             like = f"%{q}%"
             stmt = stmt.where(

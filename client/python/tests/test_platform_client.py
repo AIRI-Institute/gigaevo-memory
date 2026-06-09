@@ -205,6 +205,49 @@ class TestGetEvolution:
         assert exc.value.response.status_code == 404
 
 
+class TestListEvolutions:
+    @respx.mock
+    def test_list_evolutions_no_params(self, client):
+        payload = {
+            "items": [{"evolution_id": "ev-1", "status": "running"}],
+            "next_cursor": None,
+            "total_scanned": 1,
+        }
+        route = respx.get(f"{BASE}/api/v1/evolutions").mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        assert client.list_evolutions() == payload
+        assert route.called
+        # No query string when no filters are supplied.
+        assert route.calls.last.request.url.params == httpx.QueryParams()
+
+    @respx.mock
+    def test_list_evolutions_forwards_filters(self, client):
+        route = respx.get(f"{BASE}/api/v1/evolutions").mock(
+            return_value=httpx.Response(
+                200, json={"items": [], "next_cursor": None, "total_scanned": 0}
+            )
+        )
+        client.list_evolutions(
+            status="completed", tag="demo", q="weather", cursor="ev-9", limit=5
+        )
+        params = route.calls.last.request.url.params
+        assert params["status"] == "completed"
+        assert params["tag"] == "demo"
+        assert params["q"] == "weather"
+        assert params["cursor"] == "ev-9"
+        assert params["limit"] == "5"
+
+    @respx.mock
+    def test_list_evolutions_404_raises(self, client):
+        respx.get(f"{BASE}/api/v1/evolutions").mock(
+            return_value=httpx.Response(500, json={"detail": "boom"})
+        )
+        with pytest.raises(httpx.HTTPStatusError) as exc:
+            client.list_evolutions()
+        assert exc.value.response.status_code == 500
+
+
 class TestListIndividuals:
     @respx.mock
     def test_list_individuals_returns_list(self, client):
