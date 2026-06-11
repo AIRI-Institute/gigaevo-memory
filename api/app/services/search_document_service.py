@@ -1,4 +1,4 @@
-"""Derived search-document indexing for rich memory-card retrieval."""
+"""Derived search-document indexing for indexed entity retrieval."""
 
 from __future__ import annotations
 
@@ -51,6 +51,16 @@ DOCUMENT_KINDS = {
 
 INDEXED_ENTITY_TYPES = {"memory_card", "agent_skill"}
 
+BM25_DEFAULT_DOCUMENT_KINDS = {
+    "memory_card": DOCUMENT_KIND_FULL_CARD,
+    "agent_skill": DOCUMENT_KIND_SKILL_FULL,
+}
+
+VECTOR_DEFAULT_DOCUMENT_KINDS = {
+    "memory_card": DOCUMENT_KIND_FULL_CARD,
+    "agent_skill": DOCUMENT_KIND_SKILL_INSTRUCTIONS,
+}
+
 
 @dataclass
 class DerivedSearchDocument:
@@ -58,6 +68,16 @@ class DerivedSearchDocument:
     text_content: str
     card_id: str
     meta_json: dict[str, Any]
+
+
+def default_bm25_document_kind(entity_type: str) -> str | None:
+    """Default indexed document kind for BM25 search, if this type is indexed."""
+    return BM25_DEFAULT_DOCUMENT_KINDS.get(entity_type)
+
+
+def default_vector_document_kind(entity_type: str) -> str | None:
+    """Default indexed document kind for vector search, if this type is indexed."""
+    return VECTOR_DEFAULT_DOCUMENT_KINDS.get(entity_type)
 
 
 def _stringify(value: Any) -> str:

@@ -247,6 +247,62 @@ class TestGetLineageVersionIdParameter:
         assert out is None
 
 
+@pytest.fixture
+def http_client():
+    from app.db.session import get_db
+    from app.main import app
+
+    async def _get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[get_db] = _get_db
+    from fastapi.testclient import TestClient
+
+    yield TestClient(app)
+    app.dependency_overrides.pop(get_db, None)
+
+
+class TestLineageRouterChannelResolution:
+    """HTTP path: the chain type-check must not re-impose exact-channel
+    semantics and turn a successful lineage walk into a 404."""
+
+    def test_explicit_version_id_with_missing_channel_returns_200(
+        self, http_client, monkeypatch
+    ):
+        """Regression: ``?version_id=...&channel=<unpinned>`` resolves the
+        start version from the explicit ``version_id`` (channel is ignored
+        for the walk), so the router's chain type-check must resolve the
+        entity via fallback rather than 404 on the missing channel."""
+
+        async def fake_lineage(self, entity_id, *, channel="latest", version_id=None, max_depth=10):
+            return {
+                "entity_id": str(entity_id),
+                "root_version_id": str(version_id) if version_id else str(uuid.uuid4()),
+                "versions": [],
+                "max_depth_reached": False,
+            }
+
+        async def fake_get_entity(self, entity_id, channel="latest", *, fallback=False):
+            # Only `latest` is pinned; the requested channel is absent.
+            if channel == "latest" or fallback:
+                entity = MagicMock()
+                entity.entity_type = "chain"
+                return entity, MagicMock()
+            return None
+
+        monkeypatch.setattr(EntityService, "get_lineage", fake_lineage)
+        monkeypatch.setattr(EntityService, "get_entity", fake_get_entity)
+
+        eid = uuid.uuid4()
+        vid = uuid.uuid4()
+        r = http_client.get(
+            f"/v1/chains/{eid}/lineage",
+            params={"version_id": str(vid), "channel": "does-not-exist"},
+        )
+        assert r.status_code == 200
+        assert r.json()["entity_id"] == str(eid)
+
+
 class TestRouterRegistration:
     def test_chain_router_exposes_lineage(self):
         from app.routers.chains import router

@@ -1,9 +1,7 @@
 """Typed CRUD router for memory card entities."""
 
 import uuid
-from typing import List
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import (
@@ -14,7 +12,7 @@ from ..auth import (
 )
 from ..db.session import get_db
 from ..models.requests import EntityCreateRequest, EntityUpdateRequest
-from ..models.responses import MemoryCardResponse
+from ..models.responses import MemoryCardPageResponse, MemoryCardResponse
 from ..services.entity_service import EntityService, compute_etag
 
 router = APIRouter(prefix="/v1/memory-cards", tags=["memory_cards"])
@@ -61,6 +59,7 @@ async def create_memory_card(
         entity_type="memory_card",
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel=body.channel,
         etag=etag,
         meta=version.meta_json or {},
@@ -68,11 +67,17 @@ async def create_memory_card(
     )
 
 
-@router.get("", response_model=List[MemoryCardResponse])
+@router.get("", response_model=MemoryCardPageResponse)
 async def list_memory_cards(
-    limit: int = 50,
-    offset: int = 0,
+    response: Response,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    cursor: str | None = Query(None),
     channel: str = "latest",
+    kind: str | None = Query(
+        None,
+        description="Optional memory-card content kind filter, e.g. `dataset`.",
+    ),
     namespace: str | None = None,
     auth: AuthContext = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
@@ -86,25 +91,38 @@ async def list_memory_cards(
     """
     effective_namespace = default_read_namespace_for(namespace, auth)
     svc = EntityService(db)
-    items, _, _ = await svc.list_entities(
-        entity_type="memory_card",
-        limit=limit,
-        offset=offset,
-        channel=channel,
-        namespace=effective_namespace,
-    )
-    return [
-        MemoryCardResponse(
+    try:
+        items, next_cursor, has_more = await svc.list_entities(
             entity_type="memory_card",
-            entity_id=str(entity.entity_id),
-            version_id=str(version.version_id),
+            limit=limit,
+            offset=offset,
+            cursor=cursor,
             channel=channel,
-            etag=compute_etag(version.content_json),
-            meta=version.meta_json or {},
-            content=version.content_json,
+            namespace=effective_namespace,
+            content_kind=kind,
         )
-        for entity, version in items
-    ]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    if next_cursor:
+        response.headers["X-Next-Cursor"] = next_cursor
+    return MemoryCardPageResponse(
+        items=[
+            MemoryCardResponse(
+                entity_type="memory_card",
+                entity_id=str(entity.entity_id),
+                version_id=str(version.version_id),
+                version_number=version.version_number,
+                channel=channel,
+                etag=compute_etag(version.content_json),
+                meta=version.meta_json or {},
+                content=version.content_json,
+            )
+            for entity, version in items
+        ],
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
 
 
 @router.get("/{memory_card_id}", response_model=MemoryCardResponse)
@@ -134,6 +152,7 @@ async def get_memory_card(
         entity_type="memory_card",
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel=channel,
         etag=etag,
         meta=version.meta_json or {},
@@ -158,9 +177,7 @@ async def update_memory_card(
             raise HTTPException(status_code=404, detail="Memory card not found")
         current_etag = compute_etag(current[1].content_json)
         if if_match != current_etag:
-            raise HTTPException(
-                status_code=412, detail="Precondition Failed: ETag mismatch"
-            )
+            raise HTTPException(status_code=412, detail="Precondition Failed: ETag mismatch")
 
     evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
 
@@ -189,6 +206,7 @@ async def update_memory_card(
         entity_type="memory_card",
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel=body.channel,
         etag=etag,
         meta=version.meta_json or {},

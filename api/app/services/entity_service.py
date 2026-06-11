@@ -8,8 +8,8 @@ import uuid
 from datetime import datetime, timezone
 
 import jsonpatch
-from sqlalchemy import Text, and_, cast, func, or_, select, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import and_, cast, func, or_, select, text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -346,9 +346,22 @@ class EntityService:
         return entity, version
 
     async def get_entity(
-        self, entity_id: uuid.UUID, channel: str = "latest"
+        self,
+        entity_id: uuid.UUID,
+        channel: str = "latest",
+        *,
+        fallback: bool = False,
     ) -> tuple[Entity, EntityVersion] | None:
-        """Get entity with resolved channel version."""
+        """Get entity with resolved channel version.
+
+        By default this enforces exact-channel semantics: if the requested
+        ``channel`` has no pointer the method returns ``None`` so callers can
+        surface a 404 instead of silently serving content from another channel
+        (e.g. returning ``latest`` content labelled as ``stable``).
+
+        Set ``fallback=True`` to opt into the legacy resolution that falls back
+        to the ``latest`` channel and then to the most recent version.
+        """
         stmt = select(Entity).where(
             Entity.entity_id == entity_id, Entity.deleted_at.is_(None)
         )
@@ -359,6 +372,8 @@ class EntityService:
 
         version_id_str = entity.channels.get(channel)
         if version_id_str is None:
+            if not fallback:
+                return None
             # Fall back to latest channel, then any available version
             version_id_str = entity.channels.get("latest")
             if version_id_str is None:
@@ -673,6 +688,7 @@ class EntityService:
         tags: list[str] | None = None,
         q: str | None = None,
         namespace: str | None = None,
+        content_kind: str | None = None,
     ) -> tuple[list[tuple[Entity, EntityVersion]], str | None, bool]:
         """List entities of a specific type for an exact channel using keyset or offset pagination.
 
@@ -688,6 +704,8 @@ class EntityService:
                                  ``display_name``, ``name``, and
                                  ``description``.
           * ``namespace``     — restrict to a single CARE namespace.
+          * ``content_kind``  — restrict to the resolved channel
+                                version's ``content_json.kind`` value.
 
         Cursor pagination only works for the default sort
         (``created_at`` asc); other sort variants force offset
@@ -704,16 +722,7 @@ class EntityService:
         if namespace is not None:
             stmt = stmt.where(Entity.namespace == namespace)
         if tags:
-            # `?&` is `jsonb ?& text[]` — the right operand MUST be a
-            # Postgres text[]. Without the explicit cast, SQLAlchemy
-            # infers the bind's type from the left column (JSONB) for a
-            # list operand, emitting `jsonb ?& jsonb` which Postgres
-            # rejects ("operator does not exist") → 500. Scalar operands
-            # like `channels.op("?")(channel)` dodge this because a str
-            # gets a String type, not the parent JSONB type.
-            stmt = stmt.where(
-                Entity.tags.op("?&")(cast(list(tags), ARRAY(Text)))
-            )
+            stmt = stmt.where(Entity.tags.op("?&")(list(tags)))
         if q:
             like = f"%{q}%"
             stmt = stmt.where(
@@ -723,6 +732,12 @@ class EntityService:
                     Entity.description.ilike(like),
                 )
             )
+        if content_kind is not None:
+            stmt = stmt.join(
+                EntityVersion,
+                EntityVersion.version_id
+                == cast(Entity.channels[channel].astext, PG_UUID(as_uuid=True)),
+            ).where(EntityVersion.content_json["kind"].astext == content_kind)
 
         default_sort = sort_by == "created_at" and sort_dir.lower() == "asc"
 

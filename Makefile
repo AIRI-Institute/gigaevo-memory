@@ -1,5 +1,5 @@
 COMPOSE := docker compose -p gigaevo-memory -f deploy/docker-compose.yml
-COMPOSE_TEST := $(COMPOSE) --profile test
+COMPOSE_TEST := docker compose -p gigaevo-memory-test -f deploy/docker-compose.yml --profile test
 UV := uv
 
 .PHONY: up stop down restart rebuild rebuild-logs rl build logs migrate migrate-down migrate-create migrate-check db-reset \
@@ -86,6 +86,7 @@ test-api-unit: ## Run API unit tests (no Docker required)
 
 test-api-all: ## Run all API tests (unit + integration with Docker)
 	@echo "🧪 Running all API tests..."
+	$(COMPOSE_TEST) down -v --remove-orphans
 	$(COMPOSE_TEST) run --build --rm memory-api-test sh -lc "alembic -c app/db/alembic.ini upgrade head && python -m pytest"
 
 test-roundtrip: ## Run golden round-trip CARL compatibility tests

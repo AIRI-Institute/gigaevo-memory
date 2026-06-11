@@ -1,6 +1,7 @@
 """Tests for cursor pagination response headers on typed list endpoints."""
 
-from unittest.mock import AsyncMock, patch
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -62,6 +63,27 @@ class TestCursorHeadersChains:
             client.get("/v1/chains?cursor=ABC")
         assert captured.get("cursor") == "ABC"
 
+    def test_list_response_items_include_version_number(self, client, _bind_db):
+        entity = MagicMock()
+        entity.entity_id = uuid.uuid4()
+        entity.favourite = False
+        entity.run_count = 0
+        entity.last_run_at = None
+        entity.display_name = "chain"
+        entity.description = None
+        version = MagicMock()
+        version.version_id = uuid.uuid4()
+        version.version_number = 4
+        version.meta_json = {"name": "chain"}
+        version.content_json = {"version": "1.1", "steps": []}
+
+        with _patch_list_entities(items=[(entity, version)]):
+            resp = client.get("/v1/chains?limit=10")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["items"][0]["version_number"] == 4
+
 
 class TestCursorHeadersAgents:
     def test_response_carries_headers(self, client, _bind_db):
@@ -99,6 +121,44 @@ class TestCursorHeadersAgentSkills:
         # Server explicitly suppresses the cursor under tool filters.
         assert resp.headers["X-Has-More"] == "false"
         assert "X-Next-Cursor" not in resp.headers
+
+
+class TestMemoryCardKindFilter:
+    def test_dataset_kind_is_forwarded_and_cursor_is_preserved(self, client, _bind_db):
+        captured: dict = {}
+
+        def _pair(content: dict):
+            entity = MagicMock()
+            entity.entity_id = uuid.uuid4()
+            version = MagicMock()
+            version.version_id = uuid.uuid4()
+            version.version_number = 2
+            version.meta_json = {"name": content.get("name", "card")}
+            version.content_json = content
+            return entity, version
+
+        async def _fake(self, *args, **kwargs):
+            captured.update(kwargs)
+            return [
+                _pair({"kind": "dataset", "name": "Eval set", "rows": []}),
+            ], "NEXT", True
+
+        from app.services.entity_service import EntityService
+
+        with patch.object(EntityService, "list_entities", new=_fake):
+            resp = client.get("/v1/memory-cards?kind=dataset&limit=10")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["items"]) == 1
+        assert body["items"][0]["content"]["kind"] == "dataset"
+        assert body["items"][0]["version_number"] == 2
+        assert body["next_cursor"] == "NEXT"
+        assert body["has_more"] is True
+        assert resp.headers["X-Has-More"] == "true"
+        assert resp.headers["X-Next-Cursor"] == "NEXT"
+        assert captured["limit"] == 10
+        assert captured["content_kind"] == "dataset"
 
 
 class TestOpenAPI:

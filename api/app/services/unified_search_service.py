@@ -89,6 +89,8 @@ class UnifiedSearchService:
         namespace: str | None = None,
         channel: str = "latest",
         document_kind: str | None = None,
+        requires_tool: list[str] | None = None,
+        excludes_tool: list[str] | None = None,
         hybrid_weights: tuple[float, float] = (0.5, 0.5),
     ) -> list[dict]:
         """Execute a single search.
@@ -102,7 +104,9 @@ class UnifiedSearchService:
             tags: Optional tags filter
             namespace: Optional namespace filter
             channel: Version channel
-            document_kind: Optional memory-card search document kind
+            document_kind: Optional indexed search document kind
+            requires_tool: Optional AgentSkill allowed_tools tokens to require
+            excludes_tool: Optional AgentSkill allowed_tools tokens to exclude
             hybrid_weights: Weights for hybrid search
 
         Returns:
@@ -127,6 +131,8 @@ class UnifiedSearchService:
             namespace=namespace,
             channel=channel,
             document_kind=document_kind,
+            requires_tool=requires_tool,
+            excludes_tool=excludes_tool,
             hybrid_weights=hybrid_weights,
         )
 
@@ -150,6 +156,8 @@ class UnifiedSearchService:
         namespace: str | None = None,
         channel: str = "latest",
         document_kind: str | None = None,
+        requires_tool: list[str] | None = None,
+        excludes_tool: list[str] | None = None,
         hybrid_weights: tuple[float, float] = (0.5, 0.5),
     ) -> list[list[dict]]:
         """Execute batch search for multiple queries.
@@ -163,7 +171,9 @@ class UnifiedSearchService:
             tags: Optional tags filter
             namespace: Optional namespace filter
             channel: Version channel
-            document_kind: Optional memory-card search document kind
+            document_kind: Optional indexed search document kind
+            requires_tool: Optional AgentSkill allowed_tools tokens to require
+            excludes_tool: Optional AgentSkill allowed_tools tokens to exclude
             hybrid_weights: Weights for hybrid search
 
         Returns:
@@ -176,11 +186,14 @@ class UnifiedSearchService:
 
         # Batch embed all queries if server-side embedding is needed
         if search_type in (SearchType.VECTOR, SearchType.HYBRID):
-            if queries and not query_vectors and self._embedding_service:
+            if queries and query_vectors is None and self._embedding_service:
                 query_vectors = await self._embedding_service.embed_batch(queries)
+        if query_vectors is not None and len(query_vectors) != len(queries):
+            raise ValueError("query_vectors length must match queries length")
 
-        # Create search tasks for parallel execution
-        tasks = []
+        # Search calls share this request-scoped AsyncSession, so run
+        # DB-bound retrieval serially while preserving input order.
+        results = []
         for idx, query in enumerate(queries):
             qv = query_vectors[idx] if query_vectors else None
 
@@ -195,16 +208,15 @@ class UnifiedSearchService:
                 namespace=namespace,
                 channel=channel,
                 document_kind=document_kind,
+                requires_tool=requires_tool,
+                excludes_tool=excludes_tool,
                 hybrid_weights=hybrid_weights,
             )
 
-            tasks.append(strategy.search(request))
-
-        # Execute all searches in parallel
-        results = await asyncio.gather(*tasks)
+            results.append(await strategy.search(request))
 
         # Rerank each query's hits independently (one model call per
-        # query — running them in parallel matches the search shape).
+        # query). Reranking is separate from DB-bound retrieval.
         rerank_tasks = [
             self._apply_reranker(queries[i], hits)
             for i, hits in enumerate(results)

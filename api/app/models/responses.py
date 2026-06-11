@@ -65,6 +65,7 @@ class EntityResponse(BaseModel):
     entity_type: str
     entity_id: str
     version_id: str
+    version_number: int | None = None
     channel: str
     etag: str
     meta: dict[str, Any]
@@ -376,8 +377,10 @@ class VectorSearchResponse(BaseModel):
 
 
 class UnifiedSearchResponse(BaseModel):
-    """Response for unified search (BM25 or vector)."""
+    """Response for unified search (BM25, vector, or hybrid)."""
 
     hits: list[SearchHit] = Field(default_factory=list)
-    search_type: str = Field(description="Type of search performed (bm25 or vector)")
+    search_type: str = Field(
+        description="Type of search performed (bm25, vector, or hybrid)"
+    )
     total: int = Field(description="Total number of hits returned")

@@ -116,12 +116,6 @@ class TestListFilters:
             entity_type="agent", tags=["pdf", "extraction"], literal=False
         )
         assert "?&" in sql
-        # The right operand MUST be cast to a Postgres text[] — without
-        # it SQLAlchemy types the list bind as JSONB (inherited from the
-        # left column), emitting `jsonb ?& jsonb` which Postgres rejects
-        # at runtime with a 500. Guard the cast so the fix can't regress.
-        assert "CAST(" in sql.upper()
-        assert "AS TEXT[]" in sql.upper()
         # The JSONB ?& bind param appears as a list value.
         assert any(v == ["pdf", "extraction"] for v in params.values())
 

@@ -10,12 +10,15 @@ import hashlib
 import pytest
 
 from app.services.search_document_service import (
+    DOCUMENT_KIND_FULL_CARD,
     DOCUMENT_KIND_SKILL_ALLOWED_TOOLS,
     DOCUMENT_KIND_SKILL_DESCRIPTION,
     DOCUMENT_KIND_SKILL_FULL,
     DOCUMENT_KIND_SKILL_INSTRUCTIONS,
     DOCUMENT_KINDS,
     INDEXED_ENTITY_TYPES,
+    default_bm25_document_kind,
+    default_vector_document_kind,
     derive_agent_skill_search_documents,
 )
 
@@ -146,6 +149,24 @@ class TestIndexedEntityTypesConstant:
             DOCUMENT_KIND_SKILL_ALLOWED_TOOLS,
         ):
             assert kind in DOCUMENT_KINDS
+
+
+class TestDefaultDocumentKinds:
+    def test_bm25_defaults_cover_indexed_types(self):
+        assert default_bm25_document_kind("memory_card") == DOCUMENT_KIND_FULL_CARD
+        assert default_bm25_document_kind("agent_skill") == DOCUMENT_KIND_SKILL_FULL
+
+    def test_vector_defaults_cover_indexed_types(self):
+        assert default_vector_document_kind("memory_card") == DOCUMENT_KIND_FULL_CARD
+        assert (
+            default_vector_document_kind("agent_skill")
+            == DOCUMENT_KIND_SKILL_INSTRUCTIONS
+        )
+
+    def test_non_indexed_types_have_no_default_document_kind(self):
+        for entity_type in ("chain", "agent", "step", "unknown"):
+            assert default_bm25_document_kind(entity_type) is None
+            assert default_vector_document_kind(entity_type) is None
 
 
 class TestSyncDispatch:

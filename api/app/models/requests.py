@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SearchType(str, Enum):
@@ -459,7 +459,7 @@ class UnifiedSearchRequest(BaseModel):
     )
     query: str | None = Field(
         default=None,
-        description="Text query for BM25 or hybrid search",
+        description="Text query for BM25, hybrid, or server-side vector search",
     )
     query_vector: list[float] | None = Field(
         default=None,
@@ -489,12 +489,37 @@ class UnifiedSearchRequest(BaseModel):
     )
     document_kind: str | None = Field(
         default=None,
-        description="Optional memory-card search document kind to query",
+        description="Optional indexed search document kind to query",
+    )
+    requires_tool: list[str] | None = Field(
+        default=None,
+        description=(
+            "For agent_skill search only: require ALL listed allowed_tools tokens"
+        ),
+    )
+    excludes_tool: list[str] | None = Field(
+        default=None,
+        description=(
+            "For agent_skill search only: exclude hits with ANY listed allowed_tools token"
+        ),
     )
     hybrid_weights: tuple[float, float] = Field(
         default=(0.5, 0.5),
         description="(bm25_weight, vector_weight) for hybrid search, must sum to 1.0",
     )
+
+    @model_validator(mode="after")
+    def validate_tool_filters(self):
+        has_tool_filter = (
+            self.requires_tool is not None
+            or self.excludes_tool is not None
+        )
+        if has_tool_filter and self.entity_type != "agent_skill":
+            raise ValueError(
+                "requires_tool/excludes_tool are only supported for "
+                "entity_type='agent_skill'"
+            )
+        return self
 
 
 class BatchSearchRequest(BaseModel):
@@ -538,6 +563,36 @@ class BatchSearchRequest(BaseModel):
     )
     document_kind: str | None = Field(
         default=None,
-        description="Optional memory-card search document kind to query",
+        description="Optional indexed search document kind to query",
+    )
+    requires_tool: list[str] | None = Field(
+        default=None,
+        description=(
+            "For agent_skill search only: require ALL listed allowed_tools tokens"
+        ),
+    )
+    excludes_tool: list[str] | None = Field(
+        default=None,
+        description=(
+            "For agent_skill search only: exclude hits with ANY listed allowed_tools token"
+        ),
     )
     hybrid_weights: tuple[float, float] = (0.5, 0.5)
+
+    @model_validator(mode="after")
+    def validate_batch_search(self):
+        has_tool_filter = (
+            self.requires_tool is not None
+            or self.excludes_tool is not None
+        )
+        if has_tool_filter and self.entity_type != "agent_skill":
+            raise ValueError(
+                "requires_tool/excludes_tool are only supported for "
+                "entity_type='agent_skill'"
+            )
+        if (
+            self.query_vectors is not None
+            and len(self.query_vectors) != len(self.queries)
+        ):
+            raise ValueError("query_vectors length must match queries length")
+        return self

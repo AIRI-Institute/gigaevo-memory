@@ -12,10 +12,11 @@ it to `auth.owner` so writes auto-scope to the issuing principal.
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import AuthContext, default_namespace_for, require_api_key
+from ..config import settings
 from ..db.session import get_db
 from ..models.requests import BulkSaveItem, BulkSaveRequest
 from ..models.responses import BulkSaveItemResult, BulkSaveResponse
@@ -28,6 +29,28 @@ router = APIRouter()
 _SINGULAR_TO_PLURAL = {v: k for k, v in VALID_ENTITY_TYPES.items()}
 
 
+async def require_bulk_api_key(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    authorization: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> AuthContext:
+    """Bulk-save compatibility wrapper around the shared auth dependency."""
+    try:
+        return await require_api_key(
+            x_api_key=x_api_key,
+            authorization=authorization,
+            db=db,
+        )
+    except HTTPException as exc:
+        if settings.auth_required and not x_api_key and not authorization:
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail="Missing X-API-Key header",
+                headers=exc.headers,
+            ) from exc
+        raise
+
+
 async def _save_one(
     svc: EntityService,
     item: BulkSaveItem,
@@ -38,13 +61,10 @@ async def _save_one(
         return (
             False,
             None,
-            f"Invalid entity_type '{item.entity_type}'. "
-            f"Must be one of: {sorted(_SINGULAR_TO_PLURAL)}",
+            f"Invalid entity_type '{item.entity_type}'. Must be one of: {sorted(_SINGULAR_TO_PLURAL)}",
         )
 
-    evolution_meta = (
-        item.evolution_meta.model_dump() if item.evolution_meta else None
-    )
+    evolution_meta = item.evolution_meta.model_dump() if item.evolution_meta else None
 
     try:
         if item.entity_id is None:
@@ -95,9 +115,7 @@ async def _save_one(
     )
 
 
-def _apply_namespace_default(
-    item: BulkSaveItem, auth: AuthContext
-) -> BulkSaveItem:
+def _apply_namespace_default(item: BulkSaveItem, auth: AuthContext) -> BulkSaveItem:
     """Default ``item.meta.namespace`` for authenticated callers via
     the shared :func:`default_namespace_for` helper.
 
@@ -115,7 +133,7 @@ def _apply_namespace_default(
 @router.post("/bulk/save", response_model=BulkSaveResponse)
 async def bulk_save(
     body: BulkSaveRequest,
-    auth: AuthContext = Depends(require_api_key),
+    auth: AuthContext = Depends(require_bulk_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> BulkSaveResponse:
     """Persist a mixed list of entities in a single request.
@@ -142,11 +160,7 @@ async def bulk_save(
     for idx, item in enumerate(body.items):
         scoped_item = _apply_namespace_default(item, auth)
         ok, ref, err = await _save_one(svc, scoped_item)
-        results.append(
-            BulkSaveItemResult(
-                index=idx, success=ok, entity_ref=ref, error=err
-            )
-        )
+        results.append(BulkSaveItemResult(index=idx, success=ok, entity_ref=ref, error=err))
         if ok:
             successes += 1
         else:
@@ -154,6 +168,4 @@ async def bulk_save(
             if body.stop_on_error:
                 break
 
-    return BulkSaveResponse(
-        results=results, success_count=successes, error_count=errors
-    )
+    return BulkSaveResponse(results=results, success_count=successes, error_count=errors)

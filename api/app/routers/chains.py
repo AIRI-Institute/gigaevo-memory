@@ -1,9 +1,7 @@
 """Typed CRUD router for chain entities with CARL DAG validation."""
 
 import uuid
-from typing import List
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import (
@@ -20,7 +18,12 @@ from ..models.requests import (
     FavouriteRequest,
     RecordRunRequest,
 )
-from ..models.responses import ChainResponse, DifferentialChannelView, LineageResponse
+from ..models.responses import (
+    ChainPageResponse,
+    ChainResponse,
+    DifferentialChannelView,
+    LineageResponse,
+)
 from ..services.entity_service import (
     EntityService,
     compute_etag,
@@ -40,17 +43,8 @@ def _validate_carl_dag(content: dict) -> None:
     - All step dependencies reference existing step numbers
     - The graph is acyclic (no circular dependencies)
     """
-    # Check required top-level fields. The version field is canonically
-    # serialised by mmar-carl's ``ReasoningChain.to_dict`` as
-    # ``format_version`` (an int); accept either spelling so real
-    # MAGE/CARL-generated chains aren't rejected. Older fixtures use the
-    # legacy ``version`` key.
-    if "version" not in content and "format_version" not in content:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid CARL chain: missing required field 'version'",
-        )
-    required_fields = ["max_workers", "metadata", "search_config", "steps"]
+    # Check required top-level fields
+    required_fields = ["version", "max_workers", "metadata", "search_config", "steps"]
     for field in required_fields:
         if field not in content:
             raise HTTPException(
@@ -139,6 +133,7 @@ def _chain_response(entity, version, channel: str) -> ChainResponse:
         entity_type="chain",
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel=channel,
         etag=etag,
         meta=version.meta_json or {},
@@ -189,8 +184,9 @@ async def create_chain(
     return _chain_response(entity, version, body.channel)
 
 
-@router.get("", response_model=List[ChainResponse])
+@router.get("", response_model=ChainPageResponse)
 async def list_chains(
+    request: Request,
     response: Response,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -257,23 +253,33 @@ async def list_chains(
     """
     effective_namespace = default_read_namespace_for(namespace, auth)
     svc = EntityService(db)
-    items, next_cursor, has_more = await svc.list_entities(
-        entity_type="chain",
-        limit=limit,
-        offset=offset,
-        cursor=cursor,
-        channel=channel,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        favourites_only=favourites_only,
-        tags=tags,
-        q=q,
-        namespace=effective_namespace,
-    )
+    use_iteration_sort = "sort_by" not in request.query_params and "sort_dir" not in request.query_params
+    service_sort_by = "created_at" if use_iteration_sort else sort_by
+    service_sort_dir = "asc" if use_iteration_sort else sort_dir
+    try:
+        items, next_cursor, has_more = await svc.list_entities(
+            entity_type="chain",
+            limit=limit,
+            offset=offset,
+            cursor=cursor,
+            channel=channel,
+            sort_by=service_sort_by,
+            sort_dir=service_sort_dir,
+            favourites_only=favourites_only,
+            tags=tags,
+            q=q,
+            namespace=effective_namespace,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     response.headers["X-Has-More"] = "true" if has_more else "false"
     if next_cursor:
         response.headers["X-Next-Cursor"] = next_cursor
-    return [_chain_response(entity, version, channel) for entity, version in items]
+    return ChainPageResponse(
+        items=[_chain_response(entity, version, channel) for entity, version in items],
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
 
 
 @router.get("/{chain_id}", response_model=ChainResponse)
@@ -322,9 +328,7 @@ async def update_chain(
             raise HTTPException(status_code=404, detail="Chain not found")
         current_etag = compute_etag(current[1].content_json)
         if if_match != current_etag:
-            raise HTTPException(
-                status_code=412, detail="Precondition Failed: ETag mismatch"
-            )
+            raise HTTPException(status_code=412, detail="Precondition Failed: ETag mismatch")
 
     evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
 
@@ -460,7 +464,12 @@ async def get_chain_lineage(
         raise HTTPException(status_code=404, detail="Chain or version not found")
     # Validate the entity is actually a chain (so the lineage endpoint
     # mounted under /v1/chains doesn't accidentally serve other types).
-    entity_result = await svc.get_entity(chain_id, channel)
+    # This is a type-check only: an explicit ``version_id`` overrides
+    # channel resolution in ``get_lineage`` and the requested ``channel``
+    # may not be pinned, so use ``fallback=True`` to resolve the entity
+    # rather than re-imposing exact-channel semantics here (which would
+    # turn a successful lineage walk into a spurious 404).
+    entity_result = await svc.get_entity(chain_id, channel, fallback=True)
     if entity_result is None or entity_result[0].entity_type != "chain":
         raise HTTPException(status_code=404, detail="Entity is not a chain")
     return LineageResponse.model_validate(data)
@@ -519,10 +528,12 @@ async def list_versions_beating_channel(
     # Restrict to chains so the endpoint mounted under /v1/chains
     # doesn't accidentally surface other entity types if the same
     # entity_id happens to exist in another type's tree.
-    entity_result = await svc.get_entity(chain_id, channel)
-    # ``get_entity`` may return the chain via the `latest` fallback
-    # even when the requested baseline isn't pinned. We only need to
-    # know it's a chain entity.
+    # Type-check only: the baseline ``channel`` (default `stable`) may
+    # not be pinned — that's the documented structured-empty case, not a
+    # 404. Use ``fallback=True`` so resolving the entity for the chain
+    # check doesn't re-impose exact-channel semantics and clobber the
+    # empty payload with a spurious 404.
+    entity_result = await svc.get_entity(chain_id, channel, fallback=True)
     if entity_result is None or entity_result[0].entity_type != "chain":
         raise HTTPException(status_code=404, detail="Entity is not a chain")
     return DifferentialChannelView.model_validate(data)

@@ -82,13 +82,19 @@ app.include_router(memory_cards.router)
 # Bulk import (CARE's `care import` consumer)
 app.include_router(bulk.router, prefix="/v1", tags=["bulk"])
 
+# Search endpoints must be registered before the deprecated generic
+# entity routes below; otherwise `/v1/search/facets` is parsed as
+# `/{entity_type}/{entity_id}` with `entity_type=search`.
+app.include_router(unified_search.router, prefix="/v1", tags=["search"])
+app.include_router(embeddings.router, prefix="/v1", tags=["search"])
+
+# Events must also be registered before the deprecated generic entity
+# routes, otherwise `/v1/events/stream` and `/v1/webhooks/...` are parsed
+# as generic entity lookups and fail UUID validation.
+app.include_router(events.router, prefix="/v1", tags=["events"])
+
 # Generic entity endpoints (deprecated but kept for backward compatibility)
 app.include_router(entities.router, prefix="/v1", tags=["entities (deprecated)"])
 
 # Version management endpoints
 app.include_router(versions.router, prefix="/v1", tags=["versions"])
-
-# Search and events
-app.include_router(unified_search.router, prefix="/v1", tags=["search"])
-app.include_router(embeddings.router, prefix="/v1", tags=["search"])
-app.include_router(events.router, prefix="/v1", tags=["events"])

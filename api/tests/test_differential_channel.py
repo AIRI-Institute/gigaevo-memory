@@ -283,7 +283,25 @@ def _stub_find(monkeypatch, *, return_value):
 
 
 def _stub_get_entity(monkeypatch, *, entity_type="chain"):
-    async def fake(self, entity_id, channel="latest"):
+    async def fake(self, entity_id, channel="latest", *, fallback=False):
+        entity = MagicMock()
+        entity.entity_type = entity_type
+        return entity, MagicMock()
+    monkeypatch.setattr(EntityService, "get_entity", fake)
+
+
+def _stub_get_entity_channel_aware(monkeypatch, *, pinned_channels, entity_type="chain"):
+    """Stub ``get_entity`` that honours exact-channel semantics.
+
+    Returns ``None`` for an unpinned channel unless ``fallback=True`` and a
+    ``latest`` pointer exists — mirroring the real service so the router's
+    post-check (which must NOT 404 on an unpinned baseline) is exercised
+    faithfully instead of being masked by an always-present stub.
+    """
+    async def fake(self, entity_id, channel="latest", *, fallback=False):
+        resolves = channel in pinned_channels or (fallback and "latest" in pinned_channels)
+        if not resolves:
+            return None
         entity = MagicMock()
         entity.entity_type = entity_type
         return entity, MagicMock()
@@ -386,6 +404,34 @@ class TestEndpoint:
             "winners": [],
         })
         _stub_get_entity(monkeypatch)
+
+        eid = uuid.uuid4()
+        r = http_client.get(f"/v1/chains/{eid}/versions/beating")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["baseline_value"] is None
+        assert body["winners"] == []
+
+    def test_unpinned_baseline_with_latest_only_returns_empty_not_404(
+        self, http_client, monkeypatch
+    ):
+        """Regression: a chain with `latest` but no `stable` pin must yield
+        the structured-empty payload, not a 404.
+
+        ``find_versions_beating`` returns the empty baseline, and the
+        router's chain type-check must resolve the entity via the `latest`
+        fallback rather than re-imposing exact-channel semantics on the
+        (unpinned) `stable` baseline."""
+        _stub_find(monkeypatch, return_value={
+            "entity_id": "e-1",
+            "baseline_channel": "stable",
+            "baseline_version_id": None,
+            "objective": "fitness_score",
+            "baseline_value": None,
+            "winners": [],
+        })
+        # Only `latest` is pinned — the default `stable` baseline is absent.
+        _stub_get_entity_channel_aware(monkeypatch, pinned_channels={"latest"})
 
         eid = uuid.uuid4()
         r = http_client.get(f"/v1/chains/{eid}/versions/beating")

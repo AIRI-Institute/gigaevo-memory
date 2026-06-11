@@ -8,7 +8,6 @@ capability lookup can search them.
 """
 
 import uuid
-from typing import List
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +26,7 @@ from ..models.requests import (
     FavouriteRequest,
     RecordRunRequest,
 )
-from ..models.responses import AgentSkillResponse
+from ..models.responses import AgentSkillPageResponse, AgentSkillResponse
 from ..services.entity_service import (
     EntityService,
     compute_etag,
@@ -98,6 +97,7 @@ def _agent_skill_response(entity, version, channel: str) -> AgentSkillResponse:
         entity_type="agent_skill",
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel=channel,
         etag=etag,
         meta=version.meta_json or {},
@@ -145,7 +145,7 @@ async def create_agent_skill(
     return _agent_skill_response(entity, version, body.channel)
 
 
-@router.get("", response_model=List[AgentSkillResponse])
+@router.get("", response_model=AgentSkillPageResponse)
 async def list_agent_skills(
     response: Response,
     limit: int = Query(50, ge=1, le=200),
@@ -255,7 +255,11 @@ async def list_agent_skills(
     response.headers["X-Has-More"] = "true" if has_more else "false"
     if next_cursor:
         response.headers["X-Next-Cursor"] = next_cursor
-    return [_agent_skill_response(entity, version, channel) for entity, version in items]
+    return AgentSkillPageResponse(
+        items=[_agent_skill_response(entity, version, channel) for entity, version in items],
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
 
 
 @router.get("/{agent_skill_id}", response_model=AgentSkillResponse)

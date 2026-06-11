@@ -1,9 +1,7 @@
 """Typed CRUD router for agent entities."""
 
 import uuid
-from typing import List
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import (
@@ -20,7 +18,7 @@ from ..models.requests import (
     FavouriteRequest,
     RecordRunRequest,
 )
-from ..models.responses import AgentResponse
+from ..models.responses import AgentPageResponse, AgentResponse
 from ..services.entity_service import EntityService, compute_etag, entity_metadata_kwargs
 
 router = APIRouter(prefix="/v1/agents", tags=["agents"])
@@ -37,6 +35,7 @@ def _agent_response(entity, version, channel: str) -> AgentResponse:
         entity_type="agent",
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel=channel,
         etag=etag,
         meta=version.meta_json or {},
@@ -84,8 +83,9 @@ async def create_agent(
     return _agent_response(entity, version, body.channel)
 
 
-@router.get("", response_model=List[AgentResponse])
+@router.get("", response_model=AgentPageResponse)
 async def list_agents(
+    request: Request,
     response: Response,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -141,23 +141,33 @@ async def list_agents(
     """
     effective_namespace = default_read_namespace_for(namespace, auth)
     svc = EntityService(db)
-    items, next_cursor, has_more = await svc.list_entities(
-        entity_type="agent",
-        limit=limit,
-        offset=offset,
-        cursor=cursor,
-        channel=channel,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        favourites_only=favourites_only,
-        tags=tags,
-        q=q,
-        namespace=effective_namespace,
-    )
+    use_iteration_sort = "sort_by" not in request.query_params and "sort_dir" not in request.query_params
+    service_sort_by = "created_at" if use_iteration_sort else sort_by
+    service_sort_dir = "asc" if use_iteration_sort else sort_dir
+    try:
+        items, next_cursor, has_more = await svc.list_entities(
+            entity_type="agent",
+            limit=limit,
+            offset=offset,
+            cursor=cursor,
+            channel=channel,
+            sort_by=service_sort_by,
+            sort_dir=service_sort_dir,
+            favourites_only=favourites_only,
+            tags=tags,
+            q=q,
+            namespace=effective_namespace,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     response.headers["X-Has-More"] = "true" if has_more else "false"
     if next_cursor:
         response.headers["X-Next-Cursor"] = next_cursor
-    return [_agent_response(entity, version, channel) for entity, version in items]
+    return AgentPageResponse(
+        items=[_agent_response(entity, version, channel) for entity, version in items],
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
 
 
 @router.get("/{agent_id}", response_model=AgentResponse)
@@ -203,9 +213,7 @@ async def update_agent(
             raise HTTPException(status_code=404, detail="Agent not found")
         current_etag = compute_etag(current[1].content_json)
         if if_match != current_etag:
-            raise HTTPException(
-                status_code=412, detail="Precondition Failed: ETag mismatch"
-            )
+            raise HTTPException(status_code=412, detail="Precondition Failed: ETag mismatch")
 
     evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
 

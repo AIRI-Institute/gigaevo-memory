@@ -104,8 +104,11 @@ class TestHealthEnrichedShape:
             "redis_connected_clients",
             "redis_blocked_clients",
             "entity_counts",
+            "entities",
+            "auth",
         ):
             assert k in body, f"Missing /health field: {k}"
+        assert body["auth"] in {"open", "required"}
 
     def test_entity_counts_aggregated_by_type(self, client, healthy_setup):
         body = client.get("/health").json()
@@ -116,6 +119,7 @@ class TestHealthEnrichedShape:
             "memory_card": 23,
             "step": 0,
         }
+        assert body["entities"] == 47
 
     def test_redis_metrics_pulled_from_info(self, client, healthy_setup):
         body = client.get("/health").json()

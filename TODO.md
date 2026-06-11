@@ -876,6 +876,13 @@ slim variant, not a platform-bridging client. The user plans to rename to
   evolve without breaking this client. Layering Pydantic on later
   is non-breaking (return type narrows from `dict[str, Any]` →
   typed model).
+- *CARE §10 alignment note (2026-06-05):* `list_evolutions()` and
+  `list_individuals()` intentionally return the platform server's
+  response envelopes, not bare lists. Sync and async
+  `cancel_evolution()`, `pause_evolution()`, and
+  `resume_evolution()` are client-side stubs that raise
+  `NotImplementedError` until gigaevo-platform ships the matching
+  server routes.
 - **[DONE for in-repo callers + CI gate; external repos remain]**
   Update callers: `gigaevo-core`, `carl-mage`, `web_ui/app/client.py`
   to import from `gigaevo_client`. Add a CI gate forbidding new

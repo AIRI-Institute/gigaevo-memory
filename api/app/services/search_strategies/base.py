@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
+import json
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -31,7 +32,49 @@ class SearchRequest(BaseModel):
     namespace: str | None = None
     channel: str = "latest"
     document_kind: str | None = None
+    requires_tool: list[str] | None = None
+    excludes_tool: list[str] | None = None
     hybrid_weights: tuple[float, float] = (0.5, 0.5)  # (bm25_weight, vector_weight)
+
+    @model_validator(mode="after")
+    def validate_tool_filters(self):
+        has_tool_filter = (
+            self.requires_tool is not None
+            or self.excludes_tool is not None
+        )
+        if has_tool_filter and self.entity_type != "agent_skill":
+            raise ValueError(
+                "requires_tool/excludes_tool are only supported for "
+                "entity_type='agent_skill'"
+            )
+        return self
+
+
+def apply_allowed_tools_filters(
+    filters: list[str],
+    params: dict[str, object],
+    *,
+    requires_tool: list[str] | None,
+    excludes_tool: list[str] | None,
+) -> None:
+    """Append AgentSkill allowed_tools JSONB predicates to SQL filters."""
+    if not requires_tool and not excludes_tool:
+        return
+
+    tools_expr = (
+        "CASE WHEN jsonb_typeof(ev.content_json -> 'allowed_tools') = 'array' "
+        "THEN ev.content_json -> 'allowed_tools' ELSE '[]'::jsonb END"
+    )
+
+    for idx, tool in enumerate(requires_tool or []):
+        param = f"requires_tool_{idx}"
+        filters.append(f"({tools_expr}) @> CAST(:{param} AS jsonb)")
+        params[param] = json.dumps([tool])
+
+    for idx, tool in enumerate(excludes_tool or []):
+        param = f"excludes_tool_{idx}"
+        filters.append(f"NOT (({tools_expr}) @> CAST(:{param} AS jsonb))")
+        params[param] = json.dumps([tool])
 
 
 class SearchHit(BaseModel):

@@ -155,6 +155,7 @@ async def revert(
         entity_type=entity.entity_type,
         entity_id=str(entity.entity_id),
         version_id=str(version.version_id),
+        version_number=version.version_number,
         channel="latest",
         etag=etag,
         meta=version.meta_json or {},

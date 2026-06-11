@@ -5,9 +5,14 @@ from __future__ import annotations
 from sqlalchemy import text
 
 from ...config import settings
-from ..search_document_service import DOCUMENT_KIND_FULL_CARD
+from ..search_document_service import default_vector_document_kind
 from ..vector_utils import serialize_vector, validate_vector
-from .base import SearchHit, SearchRequest, SearchStrategy
+from .base import (
+    SearchHit,
+    SearchRequest,
+    SearchStrategy,
+    apply_allowed_tools_filters,
+)
 
 
 class VectorSearchStrategy(SearchStrategy):
@@ -28,8 +33,12 @@ class VectorSearchStrategy(SearchStrategy):
         if not request.query_vector:
             return []
 
-        if request.entity_type == "memory_card":
-            return await self._search_memory_card_documents(request)
+        default_document_kind = default_vector_document_kind(request.entity_type)
+        if default_document_kind is not None:
+            return await self._search_indexed_documents(
+                request,
+                document_kind=request.document_kind or default_document_kind,
+            )
 
         # Validate query vector
         validated_vector = validate_vector(
@@ -114,9 +123,11 @@ class VectorSearchStrategy(SearchStrategy):
 
         return hits
 
-    async def _search_memory_card_documents(
+    async def _search_indexed_documents(
         self,
         request: SearchRequest,
+        *,
+        document_kind: str,
     ) -> list[SearchHit]:
         if not request.query_vector:
             return []
@@ -126,7 +137,6 @@ class VectorSearchStrategy(SearchStrategy):
             expected_dimension=settings.vector_dimension,
             label="query_vector",
         )
-        document_kind = request.document_kind or DOCUMENT_KIND_FULL_CARD
 
         filters = [
             "e.deleted_at IS NULL",
@@ -157,6 +167,13 @@ class VectorSearchStrategy(SearchStrategy):
                     f"COALESCE(ev.meta_json -> 'tags', e.tags) @> CAST(:{tag_param} AS jsonb)"
                 )
                 params[tag_param] = f'["{tag}"]'
+
+        apply_allowed_tools_filters(
+            filters,
+            params,
+            requires_tool=request.requires_tool,
+            excludes_tool=request.excludes_tool,
+        )
 
         stmt = text(
             f"""

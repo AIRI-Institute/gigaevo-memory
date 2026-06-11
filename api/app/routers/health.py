@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..db.session import engine, get_db
 from ..events.publisher import get_redis
 
@@ -106,8 +107,9 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     # above.
     status.update(await _collect_db_pool_stats())
     status.update(await _collect_redis_metrics())
-    status["entity_counts"] = (
-        await _collect_entity_counts(db) if status["postgres"] == "ok" else None
-    )
+    entity_counts = await _collect_entity_counts(db) if status["postgres"] == "ok" else None
+    status["entity_counts"] = entity_counts
+    status["entities"] = sum(entity_counts.values()) if entity_counts is not None else None
+    status["auth"] = "required" if settings.auth_required else "open"
 
     return status

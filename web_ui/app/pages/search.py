@@ -315,7 +315,7 @@ def search_tab(client):
 
     with gr.Accordion("Search Multiple Queries at Once", open=False):
         gr.Markdown(
-            "Enter multiple queries (one per line) to search them all in parallel."
+            "Enter multiple queries (one per line) to search them as a batch."
         )
 
         unified_batch_queries = gr.Textbox(

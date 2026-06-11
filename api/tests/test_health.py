@@ -25,7 +25,7 @@ class TestHealthEndpoint:
         # Mock the database execute to raise an exception
         mock_db = AsyncMock()
         mock_db.execute.side_effect = Exception("Connection refused")
-        
+
         with patch("app.routers.health.get_db", return_value=mock_db):
             _ = await async_client.get("/health")  # resp intentionally unused
             # Note: This test may not work as expected with the current fixture
@@ -36,15 +36,15 @@ class TestHealthEndpoint:
         """Test health endpoint returns expected response structure."""
         resp = await async_client.get("/health")
         assert resp.status_code == 200
-        
+
         data = resp.json()
         assert "status" in data
         assert "postgres" in data
         assert "redis" in data
-        
+
         # Status should be one of: ok, degraded
         assert data["status"] in ["ok", "degraded"]
-        
+
         # postgres and redis should be "ok" or start with "error:"
         assert data["postgres"] == "ok" or data["postgres"].startswith("error:")
         assert data["redis"] == "ok" or data["redis"].startswith("error:")
@@ -55,22 +55,19 @@ class TestMetricsEndpoint:
     """Tests for the /metrics endpoint."""
 
     async def test_metrics_endpoint_exists(self, async_client: AsyncClient):
-        """Test metrics endpoint returns data."""
+        """Test metrics endpoint returns Prometheus exposition."""
         resp = await async_client.get("/metrics")
         assert resp.status_code == 200
-        
-        data = resp.json()
-        assert "uptime_seconds" in data
-        assert "requests_total" in data
+        assert "text/plain" in resp.headers["content-type"]
+        assert "gigaevo_memory_http_requests_total" in resp.text
+        assert "gigaevo_memory_http_request_duration_seconds" in resp.text
 
     async def test_metrics_response_structure(self, async_client: AsyncClient):
-        """Test metrics endpoint returns expected structure."""
+        """Test metrics endpoint returns Prometheus HELP/TYPE lines."""
         resp = await async_client.get("/metrics")
         assert resp.status_code == 200
-        
-        data = resp.json()
-        assert isinstance(data["uptime_seconds"], int)
-        assert isinstance(data["requests_total"], int)
+        assert "# HELP gigaevo_memory_http_requests_total " in resp.text
+        assert "# TYPE gigaevo_memory_http_requests_total counter" in resp.text
 
 
 class TestHealthUnit:
@@ -80,13 +77,13 @@ class TestHealthUnit:
     async def test_compute_etag_consistency(self):
         """Test that ETag computation is consistent for same content."""
         from app.services.entity_service import compute_etag
-        
+
         content1 = {"name": "test", "value": 123}
         content2 = {"name": "test", "value": 123}
-        
+
         etag1 = compute_etag(content1)
         etag2 = compute_etag(content2)
-        
+
         assert etag1 == etag2
         assert len(etag1) == 64  # SHA-256 hex length
 
@@ -94,24 +91,24 @@ class TestHealthUnit:
     async def test_compute_etag_different_content(self):
         """Test that ETag differs for different content."""
         from app.services.entity_service import compute_etag
-        
+
         content1 = {"name": "test", "value": 123}
         content2 = {"name": "test", "value": 456}
-        
+
         etag1 = compute_etag(content1)
         etag2 = compute_etag(content2)
-        
+
         assert etag1 != etag2
 
     @pytest.mark.asyncio
     async def test_compute_etag_order_independence(self):
         """Test that ETag is independent of key order."""
         from app.services.entity_service import compute_etag
-        
+
         content1 = {"a": 1, "b": 2}
         content2 = {"b": 2, "a": 1}
-        
+
         etag1 = compute_etag(content1)
         etag2 = compute_etag(content2)
-        
+
         assert etag1 == etag2

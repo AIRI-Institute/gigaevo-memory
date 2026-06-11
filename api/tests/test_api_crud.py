@@ -23,6 +23,7 @@ class TestEntityCRUD:
         assert data["entity_type"] == "chain"
         assert "entity_id" in data
         assert "version_id" in data
+        assert data["version_number"] == 0
         assert data["channel"] == "latest"
         assert data["content"]["version"] == "1.1"
         assert len(data["content"]["steps"]) == 2
@@ -36,6 +37,7 @@ class TestEntityCRUD:
         assert get_resp.status_code == 200
         data = get_resp.json()
         assert data["content"] == create_chain_body["content"]
+        assert data["version_number"] == 0
 
     async def test_get_nonexistent_returns_404(self, async_client):
         """GET with fake UUID returns 404."""
@@ -59,6 +61,7 @@ class TestEntityCRUD:
         assert update_resp.status_code == 200
         v2_id = update_resp.json()["version_id"]
         assert v2_id != v1_id
+        assert update_resp.json()["version_number"] == 1
 
     async def test_soft_delete(self, async_client, create_chain_body):
         """DELETE sets deleted_at; subsequent GET returns 404."""

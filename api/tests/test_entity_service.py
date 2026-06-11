@@ -1,10 +1,11 @@
 """Unit tests for EntityService and cursor utilities."""
 
+import asyncio
 import base64
 import json
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -197,3 +198,77 @@ class TestEntityServiceBasic:
         service = EntityService(mock_db)
         
         assert service.db is mock_db
+
+
+class TestGetEntityChannelResolution:
+    """`get_entity` must honour exact-channel semantics by default.
+
+    Regression guard: a missing requested channel must NOT silently resolve to
+    ``latest`` content (which would be served under the requested channel label
+    by the routers). Fallback is opt-in via ``fallback=True``.
+    """
+
+    LATEST_VID = "11111111-1111-1111-1111-111111111111"
+    ENTITY_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+    def _entity(self, channels):
+        e = MagicMock()
+        e.entity_id = uuid.UUID(self.ENTITY_ID)
+        e.deleted_at = None
+        e.entity_type = "chain"
+        e.channels = channels
+        return e
+
+    def _build_service(self, *, entity, version):
+        svc = EntityService(MagicMock())
+
+        async def fake_execute(stmt):
+            result = MagicMock()
+            s = str(stmt)
+            if "FROM entities" in s:
+                result.scalar_one_or_none.return_value = entity
+            else:
+                result.scalar_one_or_none.return_value = version
+            return result
+
+        svc.db.execute = fake_execute  # type: ignore[assignment]
+        return svc
+
+    def test_missing_channel_returns_none_by_default(self):
+        """Requesting an absent channel returns None (router -> 404)."""
+        entity = self._entity({"latest": self.LATEST_VID})
+        version = MagicMock()
+        version.version_id = uuid.UUID(self.LATEST_VID)
+        svc = self._build_service(entity=entity, version=version)
+
+        result = asyncio.run(svc.get_entity(uuid.UUID(self.ENTITY_ID), "stable"))
+        assert result is None
+
+    def test_missing_channel_falls_back_when_requested(self):
+        """fallback=True restores legacy latest-channel resolution."""
+        entity = self._entity({"latest": self.LATEST_VID})
+        version = MagicMock()
+        version.version_id = uuid.UUID(self.LATEST_VID)
+        svc = self._build_service(entity=entity, version=version)
+
+        result = asyncio.run(
+            svc.get_entity(uuid.UUID(self.ENTITY_ID), "stable", fallback=True)
+        )
+        assert result is not None
+        _, resolved = result
+        assert resolved.version_id == uuid.UUID(self.LATEST_VID)
+
+    def test_exact_channel_resolves(self):
+        """An existing requested channel resolves to its pinned version."""
+        stable_vid = "22222222-2222-2222-2222-222222222222"
+        entity = self._entity(
+            {"latest": self.LATEST_VID, "stable": stable_vid}
+        )
+        version = MagicMock()
+        version.version_id = uuid.UUID(stable_vid)
+        svc = self._build_service(entity=entity, version=version)
+
+        result = asyncio.run(svc.get_entity(uuid.UUID(self.ENTITY_ID), "stable"))
+        assert result is not None
+        _, resolved = result
+        assert resolved.version_id == uuid.UUID(stable_vid)

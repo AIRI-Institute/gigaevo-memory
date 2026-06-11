@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import SearchHit, SearchRequest, SearchStrategy
@@ -13,7 +12,7 @@ from .vector_strategy import VectorSearchStrategy
 class HybridSearchStrategy(SearchStrategy):
     """Hybrid search combining BM25 and Vector scores.
 
-    Runs both searches in parallel, normalizes scores to [0, 1],
+    Runs both searches sequentially, normalizes scores to [0, 1],
     and merges results with weighted combination.
     """
 
@@ -55,7 +54,8 @@ class HybridSearchStrategy(SearchStrategy):
             bm25_weight /= total_weight
             vector_weight /= total_weight
 
-        # Run both searches in parallel
+        # Build both sub-requests up front so the two branches receive
+        # identical filters and weights while sharing no concurrent DB work.
         bm25_request = SearchRequest(
             search_type=request.search_type,
             query=request.query,
@@ -65,6 +65,8 @@ class HybridSearchStrategy(SearchStrategy):
             namespace=request.namespace,
             channel=request.channel,
             document_kind=request.document_kind,
+            requires_tool=request.requires_tool,
+            excludes_tool=request.excludes_tool,
             hybrid_weights=request.hybrid_weights,
         )
 
@@ -78,14 +80,13 @@ class HybridSearchStrategy(SearchStrategy):
             namespace=request.namespace,
             channel=request.channel,
             document_kind=request.document_kind,
+            requires_tool=request.requires_tool,
+            excludes_tool=request.excludes_tool,
             hybrid_weights=request.hybrid_weights,
         )
 
-        # Execute searches in parallel
-        bm25_hits, vector_hits = await asyncio.gather(
-            self._bm25_strategy.search(bm25_request),
-            self._vector_strategy.search(vector_request),
-        )
+        bm25_hits = await self._bm25_strategy.search(bm25_request)
+        vector_hits = await self._vector_strategy.search(vector_request)
 
         # Normalize scores to [0, 1]
         bm25_hits_normalized = self._normalize_scores(bm25_hits)
@@ -243,6 +244,8 @@ class HybridSearchStrategy(SearchStrategy):
                 namespace=request.namespace,
                 channel=request.channel,
                 document_kind=request.document_kind,
+                requires_tool=request.requires_tool,
+                excludes_tool=request.excludes_tool,
                 hybrid_weights=request.hybrid_weights,
             )
             hits = await self.search(search_request)
