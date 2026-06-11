@@ -128,7 +128,7 @@ with gr.Blocks(title="GigaEvo Memory") as app:
     gr.Markdown(
         """
         ---
-        **GigaEvo Memory Module** v0.1.0 | [API Docs](/docs) | [OpenAPI](/openapi.yaml)
+        **GigaEvo Memory Module** v0.1.1 | [API Docs](/docs) | [OpenAPI](/openapi.yaml)
         """
     )
 
