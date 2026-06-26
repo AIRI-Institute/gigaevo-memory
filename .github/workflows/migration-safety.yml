@@ -1,0 +1,75 @@
+name: migration-safety
+
+on:
+  push:
+    paths:
+      - 'api/app/db/migrations/**'
+      - 'api/app/db/models.py'
+      - 'api/app/db/alembic.ini'
+      - '.github/workflows/migration-safety.yml'
+  pull_request:
+    paths:
+      - 'api/app/db/migrations/**'
+      - 'api/app/db/models.py'
+      - 'api/app/db/alembic.ini'
+      - '.github/workflows/migration-safety.yml'
+  workflow_dispatch:
+
+jobs:
+  alembic-roundtrip:
+    name: alembic upgrade head + downgrade -1 round-trip
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: gigaevo
+          POSTGRES_PASSWORD: gigaevo
+          POSTGRES_DB: gigaevo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gigaevo"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Async DSN used by app.config.settings.postgres_dsn — Alembic
+      # also reads this via the %(POSTGRES_DSN)s interpolation in
+      # alembic.ini.
+      POSTGRES_DSN: postgresql+asyncpg://gigaevo:gigaevo@localhost:5432/gigaevo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: 'latest'
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
+
+      - name: Static migration-chain integrity (no DB)
+        # Cheap pre-flight: catches bad revision graphs before we spend
+        # time spinning up Alembic against Postgres.
+        working-directory: api
+        run: uv run pytest tests/test_migration_chain.py -v
+
+      - name: alembic upgrade head (clean DB → head)
+        working-directory: api
+        run: uv run alembic -c app/db/alembic.ini upgrade head
+
+      - name: alembic downgrade -1 (reverse the head revision)
+        working-directory: api
+        run: uv run alembic -c app/db/alembic.ini downgrade -1
+
+      - name: alembic upgrade head (re-apply, confirms idempotency)
+        working-directory: api
+        run: uv run alembic -c app/db/alembic.ini upgrade head
+
+      - name: alembic current (final state for the job log)
+        working-directory: api
+        run: uv run alembic -c app/db/alembic.ini current

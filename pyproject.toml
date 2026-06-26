@@ -1,0 +1,28 @@
+[project]
+name = "gigaevo-memory"
+version = "0.1.1"
+description = "GigaEvo Memory module"
+requires-python = ">=3.12"
+dependencies = [
+    "gigaevo-memory-api",
+    "gigaevo-memory-web-ui",
+]
+
+[project.optional-dependencies]
+dev = [
+    "gigaevo-memory-api[dev]",
+    "gigaevo-memory-web-ui[dev]",
+]
+
+[tool.uv.workspace]
+members = [
+    "api",
+    "web_ui",
+]
+
+[tool.uv.sources]
+gigaevo-memory-api = { workspace = true }
+gigaevo-memory-web-ui = { workspace = true }
+
+[tool.ruff]
+line-length = 120

@@ -1,0 +1,226 @@
+"""Typed CRUD router for memory card entities."""
+
+import uuid
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..auth import (
+    AuthContext,
+    default_namespace_for,
+    default_read_namespace_for,
+    require_api_key,
+)
+from ..db.session import get_db
+from ..models.requests import EntityCreateRequest, EntityUpdateRequest
+from ..models.responses import MemoryCardPageResponse, MemoryCardResponse
+from ..services.entity_service import EntityService, compute_etag
+
+router = APIRouter(prefix="/v1/memory-cards", tags=["memory_cards"])
+
+
+@router.post("", status_code=201, response_model=MemoryCardResponse)
+async def create_memory_card(
+    body: EntityCreateRequest,
+    auth: AuthContext = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new memory card entity with its first version.
+
+    Authenticated callers that omit ``meta.namespace`` get their writes
+    auto-scoped to ``auth.owner`` via the shared
+    :func:`default_namespace_for` helper. Anonymous opt-in callers
+    keep the request body's namespace as-is.
+    """
+    svc = EntityService(db)
+    entity_type = "memory_cards"
+    namespace = default_namespace_for(body.meta.namespace, auth)
+
+    evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
+
+    try:
+        entity, version = await svc.create_entity(
+            entity_type_plural=entity_type,
+            name=body.meta.name,
+            content=body.content,
+            embedding=body.embedding,
+            tags=body.meta.tags,
+            when_to_use=body.meta.when_to_use,
+            author=body.meta.author,
+            namespace=namespace,
+            channel=body.channel,
+            evolution_meta=evolution_meta,
+            parent_version_id=body.parent_version_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    etag = compute_etag(version.content_json)
+    return MemoryCardResponse(
+        entity_type="memory_card",
+        entity_id=str(entity.entity_id),
+        version_id=str(version.version_id),
+        version_number=version.version_number,
+        channel=body.channel,
+        etag=etag,
+        meta=version.meta_json or {},
+        content=version.content_json,
+    )
+
+
+@router.get("", response_model=MemoryCardPageResponse)
+async def list_memory_cards(
+    response: Response,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    cursor: str | None = Query(None),
+    channel: str = "latest",
+    kind: str | None = Query(
+        None,
+        description="Optional memory-card content kind filter, e.g. `dataset`.",
+    ),
+    namespace: str | None = None,
+    auth: AuthContext = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all memory cards with pagination.
+
+    Authenticated callers without an explicit ``?namespace`` are
+    auto-scoped to ``auth.owner`` (mirrors writes-side auto-scoping;
+    bypass with the ``read:any`` scope). Anonymous callers in opt-in
+    deployments keep the "list everything" semantics.
+    """
+    effective_namespace = default_read_namespace_for(namespace, auth)
+    svc = EntityService(db)
+    try:
+        items, next_cursor, has_more = await svc.list_entities(
+            entity_type="memory_card",
+            limit=limit,
+            offset=offset,
+            cursor=cursor,
+            channel=channel,
+            namespace=effective_namespace,
+            content_kind=kind,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    if next_cursor:
+        response.headers["X-Next-Cursor"] = next_cursor
+    return MemoryCardPageResponse(
+        items=[
+            MemoryCardResponse(
+                entity_type="memory_card",
+                entity_id=str(entity.entity_id),
+                version_id=str(version.version_id),
+                version_number=version.version_number,
+                channel=channel,
+                etag=compute_etag(version.content_json),
+                meta=version.meta_json or {},
+                content=version.content_json,
+            )
+            for entity, version in items
+        ],
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
+
+
+@router.get("/{memory_card_id}", response_model=MemoryCardResponse)
+async def get_memory_card(
+    memory_card_id: uuid.UUID,
+    channel: str = "latest",
+    if_none_match: str | None = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a memory card by ID, resolving the channel to a specific version."""
+    svc = EntityService(db)
+    result = await svc.get_entity(memory_card_id, channel)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Memory card not found")
+
+    entity, version = result
+    if entity.entity_type != "memory_card":
+        raise HTTPException(status_code=404, detail="Entity is not a memory card")
+
+    etag = compute_etag(version.content_json)
+
+    # Conditional GET: return 304 if content unchanged
+    if if_none_match and if_none_match == etag:
+        return Response(status_code=304)
+
+    return MemoryCardResponse(
+        entity_type="memory_card",
+        entity_id=str(entity.entity_id),
+        version_id=str(version.version_id),
+        version_number=version.version_number,
+        channel=channel,
+        etag=etag,
+        meta=version.meta_json or {},
+        content=version.content_json,
+    )
+
+
+@router.put("/{memory_card_id}", response_model=MemoryCardResponse)
+async def update_memory_card(
+    memory_card_id: uuid.UUID,
+    body: EntityUpdateRequest,
+    if_match: str | None = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a memory card by creating a new immutable version."""
+    svc = EntityService(db)
+
+    # Optimistic concurrency check
+    if if_match:
+        current = await svc.get_entity(memory_card_id, body.channel)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Memory card not found")
+        current_etag = compute_etag(current[1].content_json)
+        if if_match != current_etag:
+            raise HTTPException(status_code=412, detail="Precondition Failed: ETag mismatch")
+
+    evolution_meta = body.evolution_meta.model_dump() if body.evolution_meta else None
+
+    try:
+        result = await svc.update_entity(
+            entity_id=memory_card_id,
+            content=body.content,
+            embedding=body.embedding,
+            name=body.meta.name if body.meta else None,
+            tags=body.meta.tags if body.meta else None,
+            when_to_use=body.meta.when_to_use if body.meta else None,
+            author=body.meta.author if body.meta else None,
+            channel=body.channel,
+            evolution_meta=evolution_meta,
+            parent_version_id=body.parent_version_id,
+            change_summary=body.change_summary,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Memory card not found")
+
+    entity, version = result
+    etag = compute_etag(version.content_json)
+    return MemoryCardResponse(
+        entity_type="memory_card",
+        entity_id=str(entity.entity_id),
+        version_id=str(version.version_id),
+        version_number=version.version_number,
+        channel=body.channel,
+        etag=etag,
+        meta=version.meta_json or {},
+        content=version.content_json,
+    )
+
+
+@router.delete("/{memory_card_id}", status_code=204)
+async def delete_memory_card(
+    memory_card_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-delete a memory card."""
+    svc = EntityService(db)
+    deleted = await svc.soft_delete(memory_card_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Memory card not found")

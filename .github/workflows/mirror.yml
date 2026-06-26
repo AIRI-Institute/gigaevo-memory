@@ -1,0 +1,83 @@
+name: Mirror to public repo
+
+# When CI (lint + tests) finishes successfully for the `release` branch,
+# force-push a single squashed snapshot of that exact commit to the public
+# mirror AIRI-Institute/gigaevo-memory (its `main` branch).
+#
+# Gating: this runs via `workflow_run` after the CI workflow completes, and
+# the job below is skipped unless CI's conclusion was `success`. A red CI run
+# (failed lint or tests) therefore NEVER reaches the public mirror.
+#
+# We build an orphan commit (no parents) and force-push it, so the private
+# repo's internal commit history NEVER reaches the public mirror — the public
+# `main` always shows exactly one commit: the current release snapshot.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [release]
+  # Manual escape hatch: a maintainer can force a mirror without a CI gate.
+  workflow_dispatch:
+
+# Only reads from this repo; the push to the mirror is authenticated with the
+# MIRROR_TOKEN secret, not GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Never let two snapshots race onto the public mirror at once.
+concurrency:
+  group: mirror-public
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    # Only mirror when triggered manually, or when the gating CI run passed.
+    # A failed/cancelled CI run leaves this job skipped, so nothing publishes.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout release tree
+        uses: actions/checkout@v5
+        with:
+          # For a workflow_run trigger, mirror the EXACT commit CI tested
+          # (head_sha); for a manual dispatch, fall back to the release tip.
+          ref: ${{ github.event.workflow_run.head_sha || 'release' }}
+          # We squash to a single orphan commit, so only the current tree
+          # matters — no need to fetch history.
+          fetch-depth: 1
+          # Don't persist the GITHUB_TOKEN as an http.extraheader in git
+          # config: that header is scoped to github.com and would override
+          # the MIRROR_TOKEN we embed in the push URL, making the push run
+          # as github-actions[bot] (which has no access to the mirror → 403).
+          persist-credentials: false
+
+      - name: Push squashed snapshot to public mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MIRROR_TOKEN:-}" ]; then
+            echo "::error::MIRROR_TOKEN secret is not set. Create a fine-grained PAT on AIRI-Institute/gigaevo-memory with Contents: read & write AND Workflows: read & write, then add it as the MIRROR_TOKEN repo secret." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # The commit actually checked out (CI-tested head_sha under
+          # workflow_run, or the release tip under manual dispatch). Don't use
+          # $GITHUB_SHA — under workflow_run that's the default-branch SHA.
+          snapshot_sha="$(git rev-parse --short HEAD)"
+
+          # Orphan branch = root commit with no parent, holding the full tree.
+          git checkout --orphan public-snapshot
+          git add -A
+          git commit -m "Release snapshot from release @ ${snapshot_sha}"
+
+          # Force-replace the mirror's main with this single snapshot commit.
+          # `-c http.https://github.com/.extraheader=` clears any persisted
+          # Authorization header so the MIRROR_TOKEN in the URL is honoured.
+          git -c http.https://github.com/.extraheader= push --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/AIRI-Institute/gigaevo-memory.git" \
+            public-snapshot:main

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    # `release` is included so the mirror workflow can gate on a green CI
+    # run for the exact commit being published (see mirror.yml).
+    branches: [main, release]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: Lint + tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          # uv.lock is .gitignored (absent in CI), so the default
+          # `**/uv.lock` cache key matches nothing and setup-uv errors.
+          # Key the cache on the workspace pyproject.toml files instead.
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Set up Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Sync dev dependencies
+        # Resolves the uv workspace (api + web_ui) with the dev extra.
+        run: uv sync --extra dev --inexact
+
+      - name: Run ruff
+        # Mirrors `make lint`. The Python SDK (gigaevo-client) lives in its
+        # own repo now and is consumed from PyPI, so the workspace is just
+        # the api + web_ui services. ruff isn't a workspace dependency, so
+        # pull it in ephemerally with `--with` (same pattern as the tests).
+        run: uv run --with ruff ruff check api/app/
+
+      - name: Run API unit tests
+        # Mirrors `make test-api-unit`: the offline-safe API slice that
+        # needs no Postgres/Redis. Docker-backed integration tests
+        # (`make test-api-all` / `test-integration`) stay out of this gate;
+        # the alembic round-trip is covered by migration-safety.yml.
+        working-directory: api
+        run: >-
+          uv run --with pytest --with pytest-asyncio --with respx --with httpx
+          python -m pytest
+          tests/test_entity_service.py
+          tests/test_embedding_service.py
+          tests/test_vector_utils.py
+          tests/test_health.py::TestHealthUnit
+          tests/test_embeddings.py::TestEmbeddingsRequestResponse
+          tests/test_embeddings.py::TestEmbeddingsEndpointUnit
+          tests/test_events.py::TestEventPublisherUnit
+          -v -W ignore::pytest.PytestConfigWarning
