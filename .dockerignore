@@ -1,0 +1,34 @@
+# Root build context for the web-ui image is the repo root (deploy/docker-compose.yml
+# builds web-ui with `context: ..`). Keep .venv/.git/caches/logs out of the context.
+
+# VCS / CI
+.git/
+.github/
+
+# Python virtualenvs and caches (anywhere in the tree)
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+*.egg-info/
+**/*.egg-info/
+
+# Local secrets (provided at runtime via compose env_file, never baked in)
+.env
+**/.env
+
+# Runtime / operational artifacts not needed by image builds
+logs/
+backups/
+docs/
+
+# OS / editor meta
+.DS_Store
+**/.DS_Store
+.vscode/
+.idea/

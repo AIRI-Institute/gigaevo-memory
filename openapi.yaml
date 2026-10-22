@@ -1,0 +1,5111 @@
+components:
+  schemas:
+    AgentPageResponse:
+      properties:
+        has_more:
+          default: false
+          title: Has More
+          type: boolean
+        items:
+          items:
+            $ref: '#/components/schemas/AgentResponse'
+          title: Items
+          type: array
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      title: AgentPageResponse
+      type: object
+    AgentResponse:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          const: agent
+          default: agent
+          title: Entity Type
+          type: string
+        etag:
+          title: Etag
+          type: string
+        favourite:
+          default: false
+          title: Favourite
+          type: boolean
+        last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Run At
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        run_count:
+          default: 0
+          title: Run Count
+          type: integer
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version Number
+      required:
+      - entity_id
+      - version_id
+      - channel
+      - etag
+      - meta
+      - content
+      title: AgentResponse
+      type: object
+    AgentSkillPageResponse:
+      properties:
+        has_more:
+          default: false
+          title: Has More
+          type: boolean
+        items:
+          items:
+            $ref: '#/components/schemas/AgentSkillResponse'
+          title: Items
+          type: array
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      title: AgentSkillPageResponse
+      type: object
+    AgentSkillResponse:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          const: agent_skill
+          default: agent_skill
+          title: Entity Type
+          type: string
+        etag:
+          title: Etag
+          type: string
+        favourite:
+          default: false
+          title: Favourite
+          type: boolean
+        last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Run At
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        run_count:
+          default: 0
+          title: Run Count
+          type: integer
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version Number
+      required:
+      - entity_id
+      - version_id
+      - channel
+      - etag
+      - meta
+      - content
+      title: AgentSkillResponse
+      type: object
+    BatchSearchRequest:
+      description: Request for batch search.
+      properties:
+        channel:
+          default: latest
+          description: Version channel to search
+          title: Channel
+          type: string
+        document_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional indexed search document kind to query
+          title: Document Kind
+        entity_type:
+          default: memory_card
+          description: Type of entity to search
+          title: Entity Type
+          type: string
+        excludes_tool:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: 'For agent_skill search only: exclude hits with ANY listed
+            allowed_tools token'
+          title: Excludes Tool
+        hybrid_weights:
+          default:
+          - 0.5
+          - 0.5
+          maxItems: 2
+          minItems: 2
+          prefixItems:
+          - type: number
+          - type: number
+          title: Hybrid Weights
+          type: array
+        namespace:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by namespace
+          title: Namespace
+        queries:
+          description: List of search queries
+          items:
+            type: string
+          maxItems: 50
+          minItems: 1
+          title: Queries
+          type: array
+        query_vectors:
+          anyOf:
+          - items:
+              items:
+                type: number
+              type: array
+            type: array
+          - type: 'null'
+          description: Pre-computed embedding vectors for vector search
+          title: Query Vectors
+        requires_tool:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: 'For agent_skill search only: require ALL listed allowed_tools
+            tokens'
+          title: Requires Tool
+        search_type:
+          $ref: '#/components/schemas/SearchType'
+          default: bm25
+          description: Type of search
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: Filter by tags
+          title: Tags
+        top_k:
+          default: 10
+          description: Number of top results per query
+          maximum: 100.0
+          minimum: 1.0
+          title: Top K
+          type: integer
+      required:
+      - queries
+      title: BatchSearchRequest
+      type: object
+    BatchSearchResponseModel:
+      description: Response for batch search.
+      properties:
+        results:
+          items:
+            items:
+              $ref: '#/components/schemas/SearchHit'
+            type: array
+          title: Results
+          type: array
+        search_type:
+          $ref: '#/components/schemas/SearchType'
+        total_queries:
+          title: Total Queries
+          type: integer
+      required:
+      - results
+      - search_type
+      - total_queries
+      title: BatchSearchResponseModel
+      type: object
+    BulkSaveItem:
+      description: 'One entity to persist in a bulk-save request.
+
+
+        Carries `entity_type` (selects the routing) plus the same payload
+
+        shape as `EntityCreateRequest` / `EntityUpdateRequest`. When
+
+        `entity_id` is set, the item is upserted as a new version on that
+
+        entity; otherwise a new entity is created.'
+      properties:
+        change_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Only used on the update path (when `entity_id` is set).
+          title: Change Summary
+        channel:
+          default: latest
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        embedding:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Embedding
+        entity_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Set to upsert (creates a new version on the existing entity);
+            omit to create a new entity.
+          title: Entity Id
+        entity_type:
+          description: One of `step | chain | agent | agent_skill | memory_card` (singular
+            form, matches `VALID_ENTITY_TYPES` values).
+          title: Entity Type
+          type: string
+        evolution_meta:
+          anyOf:
+          - $ref: '#/components/schemas/EvolutionMeta'
+          - type: 'null'
+        meta:
+          $ref: '#/components/schemas/EntityMeta'
+        parent_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Version Id
+      required:
+      - entity_type
+      - meta
+      - content
+      title: BulkSaveItem
+      type: object
+    BulkSaveItemResult:
+      description: 'Per-item outcome inside a `BulkSaveResponse`.
+
+
+        On success: `entity_ref` carries the persisted entity_id +
+
+        version_id. On failure: `error` carries a short message and the
+
+        response is otherwise empty.'
+      properties:
+        entity_ref:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          description: '`{entity_id, entity_type, version_id, channel}` when `success=True`.
+            Shape mirrors the typed-router responses so callers can drive follow-up
+            requests without a separate GET.'
+          title: Entity Ref
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Short, human-readable failure reason when `success=False`.
+          title: Error
+        index:
+          description: 0-based position in the request `items` array.
+          title: Index
+          type: integer
+        success:
+          title: Success
+          type: boolean
+      required:
+      - index
+      - success
+      title: BulkSaveItemResult
+      type: object
+    BulkSaveRequest:
+      description: 'Body for `POST /v1/bulk/save`.
+
+
+        Designed for CARE''s `care import ./generated_chains/*.json` flow:
+
+        a mixed list of entities (chains + agents + skills + memory_cards)
+
+        submitted in one request to amortise HTTP round-trips. The server
+
+        walks the list, persisting each item in its own transaction;
+
+        per-item failures don''t poison earlier successes.'
+      properties:
+        items:
+          description: Up to 500 entities per call.
+          items:
+            $ref: '#/components/schemas/BulkSaveItem'
+          maxItems: 500
+          minItems: 1
+          title: Items
+          type: array
+        stop_on_error:
+          default: false
+          description: "When `False` (default), keep going after a failure and report\
+            \ per-item results. When `True`, abort the batch on the first failure\
+            \ \u2014 useful for atomic-feeling imports where partial success is worse\
+            \ than no success."
+          title: Stop On Error
+          type: boolean
+      required:
+      - items
+      title: BulkSaveRequest
+      type: object
+    BulkSaveResponse:
+      description: Aggregate outcome for `POST /v1/bulk/save`.
+      properties:
+        error_count:
+          default: 0
+          title: Error Count
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/BulkSaveItemResult'
+          title: Results
+          type: array
+        success_count:
+          default: 0
+          title: Success Count
+          type: integer
+      title: BulkSaveResponse
+      type: object
+    ChainPageResponse:
+      properties:
+        has_more:
+          default: false
+          title: Has More
+          type: boolean
+        items:
+          items:
+            $ref: '#/components/schemas/ChainResponse'
+          title: Items
+          type: array
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      title: ChainPageResponse
+      type: object
+    ChainResponse:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          const: chain
+          default: chain
+          title: Entity Type
+          type: string
+        etag:
+          title: Etag
+          type: string
+        favourite:
+          default: false
+          title: Favourite
+          type: boolean
+        last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Run At
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        run_count:
+          default: 0
+          title: Run Count
+          type: integer
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version Number
+      required:
+      - entity_id
+      - version_id
+      - channel
+      - etag
+      - meta
+      - content
+      title: ChainResponse
+      type: object
+    DifferentialChannelView:
+      description: "Versions that beat a baseline channel on a specific objective.\n\
+        \nPowered by `GET /v1/chains/{id}/versions/beating`. CARE renders\nthis as\
+        \ a \"candidates for promotion\" list \u2014 versions that\noutperform the\
+        \ currently-pinned `stable` channel on the chosen\nobjective and may be worth\
+        \ a manual promotion decision.\n\n``objective`` selects which metric to compare:\n\
+        \n* ``\"fitness_score\"`` (default) reads ``evolution_meta.fitness_score``,\n\
+        \  falling back to the legacy gigaevo-core ``fitness`` alias.\n* Any other\
+        \ string is looked up in ``evolution_meta.objectives``\n  (e.g. ``\"accuracy\"\
+        ``, ``\"latency_ms\"``)."
+      properties:
+        baseline_channel:
+          title: Baseline Channel
+          type: string
+        baseline_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: "The baseline channel's recorded value for the chosen objective.\
+            \ ``None`` when no value is available \u2014 in that case ``winners``\
+            \ is also empty (the comparison is ill-defined)."
+          title: Baseline Value
+        baseline_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Version currently pinned to ``baseline_channel``. ``None``
+            when the channel isn't pinned for this entity.
+          title: Baseline Version Id
+        entity_id:
+          title: Entity Id
+          type: string
+        objective:
+          title: Objective
+          type: string
+        winners:
+          items:
+            $ref: '#/components/schemas/VersionScore'
+          title: Winners
+          type: array
+      required:
+      - entity_id
+      - baseline_channel
+      - objective
+      title: DifferentialChannelView
+      type: object
+    DuplicateMember:
+      description: One side of a near-duplicate pair.
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        name:
+          title: Name
+          type: string
+        namespace:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+        version_id:
+          title: Version Id
+          type: string
+      required:
+      - entity_id
+      - version_id
+      - name
+      title: DuplicateMember
+      type: object
+    DuplicatePair:
+      description: 'A pair of entities flagged as semantically near-duplicate.
+
+
+        The pair is canonicalised: ``entity_a.entity_id < entity_b.entity_id``
+
+        (lexicographic UUID order), so a deduplication walker can assume
+
+        each unordered pair appears at most once in the response.'
+      properties:
+        entity_a:
+          $ref: '#/components/schemas/DuplicateMember'
+        entity_b:
+          $ref: '#/components/schemas/DuplicateMember'
+        similarity:
+          description: "Cosine similarity in [0, 1]. Strictly \u2265 the response's\
+            \ `threshold`."
+          maximum: 1.0
+          minimum: 0.0
+          title: Similarity
+          type: number
+        suggestion:
+          default: merge
+          description: "Hint for catalogue maintenance \u2014 currently always `merge`."
+          title: Suggestion
+          type: string
+      required:
+      - entity_a
+      - entity_b
+      - similarity
+      title: DuplicatePair
+      type: object
+    DuplicatesResponse:
+      description: "Near-duplicate pairs returned by\n`GET /v1/{entity_type}/duplicates`.\
+        \ CARE / MAGE use it for\ncatalogue hygiene \u2014 surface chains or skills\
+        \ that drift toward\neach other so a human can merge them.\n\nRequires the\
+        \ deployment to have ``ENABLE_VECTOR_SEARCH=true``\n(the endpoint 503s otherwise).\
+        \ Pairs are ordered by descending\nsimilarity so the most likely merge candidates\
+        \ surface first."
+      properties:
+        channel:
+          title: Channel
+          type: string
+        entity_type:
+          title: Entity Type
+          type: string
+        pairs:
+          items:
+            $ref: '#/components/schemas/DuplicatePair'
+          title: Pairs
+          type: array
+        threshold:
+          description: Minimum cosine similarity used to filter pairs (inclusive).
+          maximum: 1.0
+          minimum: 0.0
+          title: Threshold
+          type: number
+      required:
+      - entity_type
+      - channel
+      - threshold
+      title: DuplicatesResponse
+      type: object
+    EmbeddingsRequest:
+      description: Request for text embeddings.
+      properties:
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional override of the default model
+          title: Model
+        texts:
+          description: List of text strings to embed
+          items:
+            type: string
+          maxItems: 100
+          minItems: 1
+          title: Texts
+          type: array
+      required:
+      - texts
+      title: EmbeddingsRequest
+      type: object
+    EmbeddingsResponse:
+      description: Response with text embeddings.
+      properties:
+        dimension:
+          description: Dimension of embedding vectors
+          title: Dimension
+          type: integer
+        embeddings:
+          description: List of embedding vectors, one per input text
+          items:
+            items:
+              type: number
+            type: array
+          title: Embeddings
+          type: array
+        model:
+          description: Model name used for embedding
+          title: Model
+          type: string
+      required:
+      - embeddings
+      - model
+      - dimension
+      title: EmbeddingsResponse
+      type: object
+    EntityCreateRequest:
+      properties:
+        channel:
+          default: latest
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        embedding:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Embedding
+        evolution_meta:
+          anyOf:
+          - $ref: '#/components/schemas/EvolutionMeta'
+          - type: 'null'
+        meta:
+          $ref: '#/components/schemas/EntityMeta'
+        parent_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Version Id
+      required:
+      - meta
+      - content
+      title: EntityCreateRequest
+      type: object
+    EntityMeta:
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+        namespace:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+        tags:
+          items:
+            type: string
+          title: Tags
+          type: array
+        when_to_use:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: When To Use
+      required:
+      - name
+      title: EntityMeta
+      type: object
+    EntityPatchRequest:
+      description: "Body for PATCH /v1/{type}/{id} \u2014 partial update of CARE-mutable\n\
+        entity-level fields. Does NOT create a new version."
+      properties:
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - maxLength: 200
+            type: string
+          - type: 'null'
+          title: Display Name
+        favourite:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Favourite
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+      title: EntityPatchRequest
+      type: object
+    EntityResponse:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          title: Entity Type
+          type: string
+        etag:
+          title: Etag
+          type: string
+        favourite:
+          default: false
+          title: Favourite
+          type: boolean
+        last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Run At
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        run_count:
+          default: 0
+          title: Run Count
+          type: integer
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version Number
+      required:
+      - entity_type
+      - entity_id
+      - version_id
+      - channel
+      - etag
+      - meta
+      - content
+      title: EntityResponse
+      type: object
+    EntityUpdateRequest:
+      properties:
+        change_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Change Summary
+        channel:
+          default: latest
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        embedding:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Embedding
+        evolution_meta:
+          anyOf:
+          - $ref: '#/components/schemas/EvolutionMeta'
+          - type: 'null'
+        meta:
+          anyOf:
+          - $ref: '#/components/schemas/EntityMeta'
+          - type: 'null'
+        parent_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Version Id
+      required:
+      - content
+      title: EntityUpdateRequest
+      type: object
+    EvolutionMeta:
+      description: "Provenance + fitness metadata for an entity version produced by\n\
+        an evolutionary run (gigaevo-core / gigaevo-platform / CARE).\n\nTwo concentric\
+        \ schemas live here:\n\n* **CARE / gigaevo-platform shape** (P1 \xA75, standardised\
+        \ 2026-05-16):\n  ``parent_version_ids`` (UUIDs of the parents this version\
+        \ was\n  mutated/crossed from), ``fitness_score`` (single-objective\n  scalar\
+        \ in [0, 1] or wider \u2014 depends on fitness function),\n  ``generation``\
+        \ (0-indexed generation number), ``experiment_id``\n  (the parent evolution\
+        \ run), ``objectives`` (multi-objective dict,\n  e.g. ``{\"accuracy\": 0.91,\
+        \ \"latency_ms\": 1240, \"tokens\": 4200}``),\n  ``mutation_kind`` (free string;\
+        \ typical values:\n  ``\"step_swap\"``, ``\"prompt_rewrite\"``, ``\"topology_change\"\
+        ``,\n  ``\"crossover\"``, ``\"manual_edit\"``).\n* **Legacy gigaevo-core shape**\
+        \ (pre-2026-05): ``prompt_ref``,\n  ``fitness``, ``is_valid``, ``metrics``,\
+        \ ``behavioral_descriptors``.\n  Kept for backward compat \u2014 pre-existing\
+        \ rows decode without\n  reshape. New callers should prefer the standardised\
+        \ fields.\n\nEvery field is optional. Empty ``EvolutionMeta()`` is legal."
+      properties:
+        behavioral_descriptors:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Behavioral Descriptors
+        experiment_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Identifier for the parent gigaevo-platform experiment.
+          title: Experiment Id
+        fitness:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Legacy alias for `fitness_score`. New callers prefer `fitness_score`.
+          title: Fitness
+        fitness_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Single-objective scalar. Range depends on fitness function.
+          title: Fitness Score
+        generation:
+          anyOf:
+          - minimum: 0.0
+            type: integer
+          - type: 'null'
+          description: Zero-indexed generation number within the experiment.
+          title: Generation
+        is_valid:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Valid
+        metrics:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metrics
+        mutation_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Mutation/cross-over kind that produced this version. Typical
+            values: "step_swap", "prompt_rewrite", "topology_change", "crossover",
+            "manual_edit".'
+          title: Mutation Kind
+        objectives:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          description: "Multi-objective fitness dict \u2014 e.g. {\"accuracy\": 0.91,\
+            \ \"latency_ms\": 1240, \"tokens\": 4200}."
+          title: Objectives
+        parent_version_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: "UUIDs of the parent versions this version was derived from.\
+            \ Single-parent mutation has length 1; crossover has length \u2265 2."
+          title: Parent Version Ids
+        prompt_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prompt Ref
+      title: EvolutionMeta
+      type: object
+    FacetsResponse:
+      properties:
+        authors:
+          additionalProperties:
+            type: integer
+          title: Authors
+          type: object
+        entity_types:
+          additionalProperties:
+            type: integer
+          title: Entity Types
+          type: object
+        namespaces:
+          additionalProperties:
+            type: integer
+          title: Namespaces
+          type: object
+        tags:
+          additionalProperties:
+            type: integer
+          title: Tags
+          type: object
+      title: FacetsResponse
+      type: object
+    FavouriteRequest:
+      description: "Body for POST /v1/{type}/{id}/favourite \u2014 toggle or set the\
+        \ flag."
+      properties:
+        favourite:
+          default: true
+          title: Favourite
+          type: boolean
+      title: FavouriteRequest
+      type: object
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          title: Detail
+          type: array
+      title: HTTPValidationError
+      type: object
+    LineageResponse:
+      description: "Ancestry DAG starting from a specific version (the ``root``).\n\
+        \nVersions are returned in BFS order (root first, then its parents,\nthen\
+        \ their parents, \u2026), de-duplicated by ``version_id``. ``depth``\non each\
+        \ node lets clients render layers without re-walking."
+      properties:
+        entity_id:
+          title: Entity Id
+          type: string
+        max_depth_reached:
+          default: false
+          description: True when the BFS hit ``max_depth`` and didn't fully expand
+            all parents. The client may re-issue with a larger ``max_depth`` to walk
+            further.
+          title: Max Depth Reached
+          type: boolean
+        root_version_id:
+          title: Root Version Id
+          type: string
+        versions:
+          items:
+            $ref: '#/components/schemas/LineageVersion'
+          title: Versions
+          type: array
+      required:
+      - entity_id
+      - root_version_id
+      title: LineageResponse
+      type: object
+    LineageVersion:
+      description: 'A single node in an entity''s ancestry DAG.
+
+
+        Returned by ``GET /v1/chains/{id}/lineage`` and used by CARE''s
+
+        library evolution-tree visualisation. Carries the version''s own
+
+        `parents` array so the client can rebuild the full DAG topology
+
+        without re-fetching.'
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        change_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Change Summary
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        depth:
+          default: 0
+          description: "BFS depth from the requested root (0 = the root itself, 1\
+            \ = its direct parents, \u2026). Convenient for layered rendering."
+          title: Depth
+          type: integer
+        evolution_meta:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Evolution Meta
+        parents:
+          items:
+            type: string
+          title: Parents
+          type: array
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          title: Version Number
+          type: integer
+      required:
+      - version_id
+      - version_number
+      - created_at
+      title: LineageVersion
+      type: object
+    MemoryCardPageResponse:
+      properties:
+        has_more:
+          default: false
+          title: Has More
+          type: boolean
+        items:
+          items:
+            $ref: '#/components/schemas/MemoryCardResponse'
+          title: Items
+          type: array
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      title: MemoryCardPageResponse
+      type: object
+    MemoryCardResponse:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          const: memory_card
+          default: memory_card
+          title: Entity Type
+          type: string
+        etag:
+          title: Etag
+          type: string
+        favourite:
+          default: false
+          title: Favourite
+          type: boolean
+        last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Run At
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        run_count:
+          default: 0
+          title: Run Count
+          type: integer
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version Number
+      required:
+      - entity_id
+      - version_id
+      - channel
+      - etag
+      - meta
+      - content
+      title: MemoryCardResponse
+      type: object
+    PinRequest:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        version_id:
+          title: Version Id
+          type: string
+      required:
+      - channel
+      - version_id
+      title: PinRequest
+      type: object
+    PromoteRequest:
+      properties:
+        from_channel:
+          default: latest
+          title: From Channel
+          type: string
+        to_channel:
+          default: stable
+          title: To Channel
+          type: string
+      title: PromoteRequest
+      type: object
+    RecordRunRequest:
+      description: 'Body for POST /v1/{type}/{id}/run-recorded.
+
+
+        `run_id` is currently informational (will be used to dedupe
+
+        accidental double-recordings via a short-lived in-memory LRU). The
+
+        field is optional; clients can omit it.'
+      properties:
+        run_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
+      title: RecordRunRequest
+      type: object
+    RevertRequest:
+      properties:
+        target_version_id:
+          title: Target Version Id
+          type: string
+      required:
+      - target_version_id
+      title: RevertRequest
+      type: object
+    SearchHit:
+      properties:
+        channel:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Channel
+        content:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Content
+        document_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Document Id
+        document_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Document Kind
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          title: Entity Type
+          type: string
+        name:
+          title: Name
+          type: string
+        score:
+          default: 0.0
+          title: Score
+          type: number
+        snippet:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snippet
+        tags:
+          items:
+            type: string
+          title: Tags
+          type: array
+        version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version Id
+        when_to_use:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: When To Use
+      required:
+      - entity_id
+      - entity_type
+      - name
+      title: SearchHit
+      type: object
+    SearchType:
+      description: Search algorithm type.
+      enum:
+      - bm25
+      - vector
+      - hybrid
+      title: SearchType
+      type: string
+    StepPageResponse:
+      properties:
+        has_more:
+          default: false
+          title: Has More
+          type: boolean
+        items:
+          items:
+            $ref: '#/components/schemas/StepResponse'
+          title: Items
+          type: array
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      title: StepPageResponse
+      type: object
+    StepResponse:
+      properties:
+        channel:
+          title: Channel
+          type: string
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        entity_id:
+          title: Entity Id
+          type: string
+        entity_type:
+          const: step
+          default: step
+          title: Entity Type
+          type: string
+        etag:
+          title: Etag
+          type: string
+        favourite:
+          default: false
+          title: Favourite
+          type: boolean
+        last_run_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Run At
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        run_count:
+          default: 0
+          title: Run Count
+          type: integer
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version Number
+      required:
+      - entity_id
+      - version_id
+      - channel
+      - etag
+      - meta
+      - content
+      title: StepResponse
+      type: object
+    UnifiedSearchRequest:
+      description: Request for unified search (BM25, vector, or hybrid).
+      properties:
+        channel:
+          default: latest
+          description: Version channel to search
+          title: Channel
+          type: string
+        document_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional indexed search document kind to query
+          title: Document Kind
+        entity_type:
+          default: memory_card
+          description: Type of entity to search
+          title: Entity Type
+          type: string
+        excludes_tool:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: 'For agent_skill search only: exclude hits with ANY listed
+            allowed_tools token'
+          title: Excludes Tool
+        hybrid_weights:
+          default:
+          - 0.5
+          - 0.5
+          description: (bm25_weight, vector_weight) for hybrid search, must sum to
+            1.0
+          maxItems: 2
+          minItems: 2
+          prefixItems:
+          - type: number
+          - type: number
+          title: Hybrid Weights
+          type: array
+        namespace:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by namespace
+          title: Namespace
+        query:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Text query for BM25, hybrid, or server-side vector search
+          title: Query
+        query_vector:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          description: Pre-computed embedding vector for vector search
+          title: Query Vector
+        requires_tool:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: 'For agent_skill search only: require ALL listed allowed_tools
+            tokens'
+          title: Requires Tool
+        search_type:
+          $ref: '#/components/schemas/SearchType'
+          default: bm25
+          description: 'Type of search: ''bm25'', ''vector'', or ''hybrid'''
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: Filter by tags
+          title: Tags
+        top_k:
+          default: 10
+          description: Number of top results to return
+          maximum: 100.0
+          minimum: 1.0
+          title: Top K
+          type: integer
+      title: UnifiedSearchRequest
+      type: object
+    UnifiedSearchResponse:
+      description: Response for unified search (BM25, vector, or hybrid).
+      properties:
+        hits:
+          items:
+            $ref: '#/components/schemas/SearchHit'
+          title: Hits
+          type: array
+        search_type:
+          description: Type of search performed (bm25, vector, or hybrid)
+          title: Search Type
+          type: string
+        total:
+          description: Total number of hits returned
+          title: Total
+          type: integer
+      required:
+      - search_type
+      - total
+      title: UnifiedSearchResponse
+      type: object
+    ValidationError:
+      properties:
+        ctx:
+          title: Context
+          type: object
+        input:
+          title: Input
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          title: Location
+          type: array
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+      type: object
+    VectorSearchRequest:
+      description: Backward-compatible BYO-vector search request.
+      properties:
+        channel:
+          default: latest
+          title: Channel
+          type: string
+        entity_type:
+          default: chain
+          title: Entity Type
+          type: string
+        limit:
+          default: 10
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          type: integer
+        namespace:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+        query_vector:
+          items:
+            type: number
+          minItems: 1
+          title: Query Vector
+          type: array
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+      required:
+      - query_vector
+      title: VectorSearchRequest
+      type: object
+    VectorSearchResponse:
+      properties:
+        hits:
+          items:
+            $ref: '#/components/schemas/SearchHit'
+          title: Hits
+          type: array
+      title: VectorSearchResponse
+      type: object
+    VersionDetail:
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        change_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Change Summary
+        content:
+          additionalProperties: true
+          title: Content
+          type: object
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        entity_id:
+          title: Entity Id
+          type: string
+        evolution_meta:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Evolution Meta
+        meta:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Meta
+        parents:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Parents
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          title: Version Number
+          type: integer
+      required:
+      - version_id
+      - entity_id
+      - version_number
+      - created_at
+      - content
+      title: VersionDetail
+      type: object
+    VersionInfo:
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        change_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Change Summary
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        entity_id:
+          title: Entity Id
+          type: string
+        evolution_meta:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Evolution Meta
+        parents:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Parents
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          title: Version Number
+          type: integer
+      required:
+      - version_id
+      - entity_id
+      - version_number
+      - created_at
+      title: VersionInfo
+      type: object
+    VersionScore:
+      description: 'A single version''s score on a chosen objective, plus its delta
+
+        against the baseline channel.
+
+
+        Returned inside :class:`DifferentialChannelView.winners`. The list
+
+        is sorted by ``value`` (descending by default), so consumers can
+
+        render "top N improvements" without a client-side sort.'
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        change_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Change Summary
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        delta:
+          description: '``value`` minus the baseline channel''s value. Always positive
+            for entries in :class:`DifferentialChannelView.winners` (strict ``>``
+            filter).'
+          title: Delta
+          type: number
+        value:
+          description: The version's recorded value for the requested objective.
+          title: Value
+          type: number
+        version_id:
+          title: Version Id
+          type: string
+        version_number:
+          title: Version Number
+          type: integer
+      required:
+      - version_id
+      - version_number
+      - value
+      - delta
+      - created_at
+      title: VersionScore
+      type: object
+info:
+  description: 'Persistent memory for CARL artifacts: steps, chains, agents, memory
+    cards'
+  title: GigaEvo Memory Module
+  version: 0.1.1
+openapi: 3.1.0
+paths:
+  /health:
+    get:
+      description: "Check health of API and all dependencies.\n\nBeyond the binary\
+        \ ``ok | degraded`` status, the payload now\nincludes connection-pool stats,\
+        \ redis client counts, and live\nentity counts \u2014 what CARE's TUI status\
+        \ bar consumes for live\noperational visibility."
+      operationId: health_check_health_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+      summary: Health Check
+  /v1/agent-skills:
+    get:
+      description: 'List agent_skills with CARE library sort/filter knobs.
+
+
+        Authenticated callers without an explicit ``?namespace`` are
+
+        auto-scoped to ``auth.owner`` (mirrors writes-side auto-scoping;
+
+        bypass with the ``read:any`` scope). Anonymous callers in opt-in
+
+        deployments keep the "list everything" semantics.
+
+
+        Defaults match the CARE catalogue view: recently-used skills first.'
+      operationId: list_agent_skills_v1_agent_skills_get
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      - description: Keyset-pagination cursor returned by a previous call's `X-Next-Cursor`
+          response header. Stable past 10k entities; only valid with the default sort.
+        in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Keyset-pagination cursor returned by a previous call's `X-Next-Cursor`
+            response header. Stable past 10k entities; only valid with the default
+            sort.
+          title: Cursor
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - description: Field to sort by. Default matches CARE library shape.
+        in: query
+        name: sort_by
+        required: false
+        schema:
+          default: last_run_at
+          description: Field to sort by. Default matches CARE library shape.
+          pattern: ^(created_at|last_run_at|run_count|display_name)$
+          title: Sort By
+          type: string
+      - description: Sort direction. Default `desc` so the catalogue shows recently-used
+          skills first.
+        in: query
+        name: sort_dir
+        required: false
+        schema:
+          default: desc
+          description: Sort direction. Default `desc` so the catalogue shows recently-used
+            skills first.
+          pattern: ^(asc|desc)$
+          title: Sort Dir
+          type: string
+      - description: When true, only return skills flagged `favourite=TRUE`.
+        in: query
+        name: favourites_only
+        required: false
+        schema:
+          default: false
+          description: When true, only return skills flagged `favourite=TRUE`.
+          title: Favourites Only
+          type: boolean
+      - description: Filter to skills whose `tags` JSONB array contains ALL listed
+          tokens (AND semantics).
+        in: query
+        name: tags
+        required: false
+        schema:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: Filter to skills whose `tags` JSONB array contains ALL listed
+            tokens (AND semantics).
+          title: Tags
+      - description: Case-insensitive substring across display_name / name / description.
+        in: query
+        name: q
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Case-insensitive substring across display_name / name / description.
+          title: Q
+      - description: Restrict to a single CARE namespace. When omitted and the caller
+          is authenticated, the server auto-scopes to ``auth.owner`` unless the caller
+          holds the ``read:any`` scope.
+        in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Restrict to a single CARE namespace. When omitted and the caller
+            is authenticated, the server auto-scopes to ``auth.owner`` unless the
+            caller holds the ``read:any`` scope.
+          title: Namespace
+      - description: "Restrict to skills whose `allowed_tools` array contains ALL\
+          \ listed tokens (AND semantics). Repeat the param to stack constraints:\
+          \ `?requires_tool=Read&requires_tool=Write` \u2192 skills that need both\
+          \ Read and Write."
+        in: query
+        name: requires_tool
+        required: false
+        schema:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: "Restrict to skills whose `allowed_tools` array contains ALL\
+            \ listed tokens (AND semantics). Repeat the param to stack constraints:\
+            \ `?requires_tool=Read&requires_tool=Write` \u2192 skills that need both\
+            \ Read and Write."
+          title: Requires Tool
+      - description: Drop skills that mention ANY of the listed tokens in their `allowed_tools`.
+          Useful for MAGE-side capability lookup when the user doesn't want a skill
+          that requires (e.g.) `Bash`.
+        in: query
+        name: excludes_tool
+        required: false
+        schema:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: Drop skills that mention ANY of the listed tokens in their
+            `allowed_tools`. Useful for MAGE-side capability lookup when the user
+            doesn't want a skill that requires (e.g.) `Bash`.
+          title: Excludes Tool
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillPageResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Agent Skills
+      tags:
+      - agent_skills
+    post:
+      description: 'Create a new agent_skill entity with its first version.
+
+
+        Authenticated callers that omit ``meta.namespace`` get their writes
+
+        auto-scoped to ``auth.owner`` via the shared
+
+        :func:`default_namespace_for` helper. Anonymous opt-in callers
+
+        keep the request body''s namespace as-is.'
+      operationId: create_agent_skill_v1_agent_skills_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Agent Skill
+      tags:
+      - agent_skills
+  /v1/agent-skills/{agent_skill_id}:
+    delete:
+      description: Soft-delete an agent_skill.
+      operationId: delete_agent_skill_v1_agent_skills__agent_skill_id__delete
+      parameters:
+      - in: path
+        name: agent_skill_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Skill Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Agent Skill
+      tags:
+      - agent_skills
+    get:
+      description: Get an agent_skill by ID, resolving the channel to a specific version.
+      operationId: get_agent_skill_v1_agent_skills__agent_skill_id__get
+      parameters:
+      - in: path
+        name: agent_skill_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Skill Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: header
+        name: if-none-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-None-Match
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Agent Skill
+      tags:
+      - agent_skills
+    patch:
+      description: 'Partial update of CARE-mutable entity-level fields.
+
+
+        Mutates ``display_name`` / ``description`` / ``tags`` / ``favourite``
+
+        on the entity row without creating a new version. CARE uses this
+
+        when the user renames a skill or toggles its favourite/tags from
+
+        the catalogue screen.'
+      operationId: patch_agent_skill_metadata_v1_agent_skills__agent_skill_id__patch
+      parameters:
+      - in: path
+        name: agent_skill_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Skill Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityPatchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Patch Agent Skill Metadata
+      tags:
+      - agent_skills
+    put:
+      description: Update an agent_skill by creating a new immutable version.
+      operationId: update_agent_skill_v1_agent_skills__agent_skill_id__put
+      parameters:
+      - in: path
+        name: agent_skill_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Skill Id
+          type: string
+      - in: header
+        name: if-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Agent Skill
+      tags:
+      - agent_skills
+  /v1/agent-skills/{agent_skill_id}/favourite:
+    post:
+      description: Set the favourite flag on a skill (idempotent, no new version).
+      operationId: toggle_agent_skill_favourite_v1_agent_skills__agent_skill_id__favourite_post
+      parameters:
+      - in: path
+        name: agent_skill_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Skill Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavouriteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Toggle Agent Skill Favourite
+      tags:
+      - agent_skills
+  /v1/agent-skills/{agent_skill_id}/run-recorded:
+    post:
+      description: 'Bump ``run_count`` and set ``last_run_at = now()``.
+
+
+        CARE calls this every time a chain successfully exercises this
+
+        skill so the catalogue can sort by usage/recency.'
+      operationId: record_agent_skill_run_v1_agent_skills__agent_skill_id__run_recorded_post
+      parameters:
+      - in: path
+        name: agent_skill_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Skill Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordRunRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSkillResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Record Agent Skill Run
+      tags:
+      - agent_skills
+  /v1/agents:
+    get:
+      description: 'List agents with CARE library sort/filter knobs.
+
+
+        Authenticated callers without an explicit ``?namespace`` query
+
+        are auto-scoped to ``auth.owner`` (mirrors the writes-side
+
+        auto-scoping). The ``read:any`` scope opts out of that scoping.
+
+        Anonymous callers in opt-in deployments keep the "list
+
+        everything" semantics.
+
+
+        Defaults match the LibraryScreen''s home view: agents in the user''s
+
+        namespace, sorted by ``last_run_at DESC`` so recently-used agents
+
+        surface first.'
+      operationId: list_agents_v1_agents_get
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      - description: Keyset-pagination cursor returned by a previous call's `X-Next-Cursor`
+          response header. Stable past 10k entities; only valid with the default sort.
+        in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Keyset-pagination cursor returned by a previous call's `X-Next-Cursor`
+            response header. Stable past 10k entities; only valid with the default
+            sort.
+          title: Cursor
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - description: Field to sort by. Default matches CARE library shape.
+        in: query
+        name: sort_by
+        required: false
+        schema:
+          default: last_run_at
+          description: Field to sort by. Default matches CARE library shape.
+          pattern: ^(created_at|last_run_at|run_count|display_name)$
+          title: Sort By
+          type: string
+      - description: Sort direction. Default `desc` so the library shows the most
+          recently used agents on top.
+        in: query
+        name: sort_dir
+        required: false
+        schema:
+          default: desc
+          description: Sort direction. Default `desc` so the library shows the most
+            recently used agents on top.
+          pattern: ^(asc|desc)$
+          title: Sort Dir
+          type: string
+      - description: When true, only return agents flagged `favourite=TRUE`.
+        in: query
+        name: favourites_only
+        required: false
+        schema:
+          default: false
+          description: When true, only return agents flagged `favourite=TRUE`.
+          title: Favourites Only
+          type: boolean
+      - description: Filter to agents whose `tags` JSONB array contains ALL listed
+          tokens (AND semantics).
+        in: query
+        name: tags
+        required: false
+        schema:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: Filter to agents whose `tags` JSONB array contains ALL listed
+            tokens (AND semantics).
+          title: Tags
+      - description: Case-insensitive substring match across display_name / name /
+          description.
+        in: query
+        name: q
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Case-insensitive substring match across display_name / name
+            / description.
+          title: Q
+      - description: Restrict to a single CARE namespace.
+        in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Restrict to a single CARE namespace.
+          title: Namespace
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentPageResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Agents
+      tags:
+      - agents
+    post:
+      description: 'Create a new agent entity with its first version.
+
+
+        Authenticated callers that omit ``meta.namespace`` get their writes
+
+        auto-scoped to ``auth.owner`` via the shared
+
+        :func:`default_namespace_for` helper. Anonymous opt-in callers
+
+        keep the request body''s namespace as-is (typically ``None``).'
+      operationId: create_agent_v1_agents_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Agent
+      tags:
+      - agents
+  /v1/agents/{agent_id}:
+    delete:
+      description: Soft-delete an agent.
+      operationId: delete_agent_v1_agents__agent_id__delete
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Agent
+      tags:
+      - agents
+    get:
+      description: Get an agent by ID, resolving the channel to a specific version.
+      operationId: get_agent_v1_agents__agent_id__get
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: header
+        name: if-none-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-None-Match
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Agent
+      tags:
+      - agents
+    patch:
+      description: 'Partial update of CARE-mutable entity-level fields.
+
+
+        Mutates ``display_name`` / ``description`` / ``tags`` / ``favourite``
+
+        on the entity row without creating a new version. CARE uses this
+
+        when the user renames an agent or toggles its favourite/tags from
+
+        the library screen.'
+      operationId: patch_agent_metadata_v1_agents__agent_id__patch
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityPatchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Patch Agent Metadata
+      tags:
+      - agents
+    put:
+      description: Update an agent by creating a new immutable version.
+      operationId: update_agent_v1_agents__agent_id__put
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: header
+        name: if-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Agent
+      tags:
+      - agents
+  /v1/agents/{agent_id}/favourite:
+    post:
+      description: Set the favourite flag on an agent (idempotent, no new version).
+      operationId: toggle_agent_favourite_v1_agents__agent_id__favourite_post
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavouriteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Toggle Agent Favourite
+      tags:
+      - agents
+  /v1/agents/{agent_id}/run-recorded:
+    post:
+      description: 'Bump ``run_count`` and set ``last_run_at = now()``.
+
+
+        Called by CARE (or any client) every time a saved agent is run, so
+
+        the library can sort by usage/recency.'
+      operationId: record_agent_run_v1_agents__agent_id__run_recorded_post
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordRunRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Record Agent Run
+      tags:
+      - agents
+  /v1/agents/{agent_id}/versions:
+    get:
+      description: List all versions of an agent with pagination.
+      operationId: list_agent_versions_v1_agents__agent_id__versions_get
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VersionInfo'
+                title: Response List Agent Versions V1 Agents  Agent Id  Versions
+                  Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Agent Versions
+      tags:
+      - versions
+  /v1/agents/{agent_id}/versions/{version_id}:
+    get:
+      description: Get a specific agent version with its content.
+      operationId: get_agent_version_v1_agents__agent_id__versions__version_id__get
+      parameters:
+      - in: path
+        name: agent_id
+        required: true
+        schema:
+          format: uuid
+          title: Agent Id
+          type: string
+      - in: path
+        name: version_id
+        required: true
+        schema:
+          format: uuid
+          title: Version Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Agent Version
+      tags:
+      - versions
+  /v1/bulk/save:
+    post:
+      description: "Persist a mixed list of entities in a single request.\n\nUsed\
+        \ by CARE's `care import` (and any future migration / batch-load\ntooling).\
+        \ Items are processed in submission order with per-item\nerror isolation by\
+        \ default \u2014 a failure at index 3 doesn't roll back\nindex 0\u20132. Pass\
+        \ `stop_on_error=True` to abort on the first failure.\n\nWhen the caller is\
+        \ authenticated (i.e. an `X-API-Key` header was\nsupplied and validated) and\
+        \ an item omits `meta.namespace`, the\nserver defaults the item's namespace\
+        \ to `auth.owner`. This is the\nauto-namespacing path that makes CARE's `care\
+        \ import` work out of\nthe box without each chain needing an explicit namespace.\n\
+        \nReturns a per-item results array so the client can correlate\nsuccesses\
+        \ with their input positions."
+      operationId: bulk_save_v1_bulk_save_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkSaveRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkSaveResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Bulk Save
+      tags:
+      - bulk
+  /v1/chains:
+    get:
+      description: "List chains with CARE library sort/filter knobs.\n\nDefaults match\
+        \ the LibraryScreen's home view: chains in the user's\nnamespace, sorted by\
+        \ ``last_run_at DESC`` so recently-run chains\nsurface first.\n\nWhen the\
+        \ caller is authenticated and doesn't pass an explicit\n``?namespace`` filter,\
+        \ results are auto-scoped to ``auth.owner``\n(mirroring the writes-side auto-scoping)\
+        \ so a personal-key holder\nonly sees their own chains. The ``read:any`` scope\
+        \ opts out of\nthat scoping. Anonymous callers in opt-in deployments keep\
+        \ their\ncurrent \"list everything\" semantics.\n\n**Pagination**: response\
+        \ carries two headers \u2014 ``X-Next-Cursor``\n(opaque cursor string, only\
+        \ present when ``has_more=True``) and\n``X-Has-More`` (``\"true\" | \"false\"\
+        ``). Pass the cursor back as\n``?cursor=...`` to fetch the next page. Cursor\
+        \ pagination is\nstable past 10k entities; offset pagination remains supported\
+        \ for\ncallers that haven't migrated yet."
+      operationId: list_chains_v1_chains_get
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      - description: "Keyset-pagination cursor returned by a previous call's `X-Next-Cursor`\
+          \ response header. When supplied, ``offset`` is ignored and the cursor's\
+          \ stable position is used instead \u2014 safe past 10k entities. Only valid\
+          \ with the default sort (`created_at asc`); the server silently ignores\
+          \ the cursor on non-default sorts."
+        in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: "Keyset-pagination cursor returned by a previous call's `X-Next-Cursor`\
+            \ response header. When supplied, ``offset`` is ignored and the cursor's\
+            \ stable position is used instead \u2014 safe past 10k entities. Only\
+            \ valid with the default sort (`created_at asc`); the server silently\
+            \ ignores the cursor on non-default sorts."
+          title: Cursor
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - description: Field to sort by. Default matches CARE library shape.
+        in: query
+        name: sort_by
+        required: false
+        schema:
+          default: last_run_at
+          description: Field to sort by. Default matches CARE library shape.
+          pattern: ^(created_at|last_run_at|run_count|display_name)$
+          title: Sort By
+          type: string
+      - description: Sort direction. Default `desc` so the library shows the most
+          recently used chains on top.
+        in: query
+        name: sort_dir
+        required: false
+        schema:
+          default: desc
+          description: Sort direction. Default `desc` so the library shows the most
+            recently used chains on top.
+          pattern: ^(asc|desc)$
+          title: Sort Dir
+          type: string
+      - description: When true, only return chains flagged `favourite=TRUE`.
+        in: query
+        name: favourites_only
+        required: false
+        schema:
+          default: false
+          description: When true, only return chains flagged `favourite=TRUE`.
+          title: Favourites Only
+          type: boolean
+      - description: Filter to chains whose `tags` JSONB array contains ALL listed
+          tokens (AND semantics).
+        in: query
+        name: tags
+        required: false
+        schema:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          description: Filter to chains whose `tags` JSONB array contains ALL listed
+            tokens (AND semantics).
+          title: Tags
+      - description: Case-insensitive substring match across display_name / name /
+          description.
+        in: query
+        name: q
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Case-insensitive substring match across display_name / name
+            / description.
+          title: Q
+      - description: Restrict to a single CARE namespace.
+        in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Restrict to a single CARE namespace.
+          title: Namespace
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainPageResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Chains
+      tags:
+      - chains
+    post:
+      description: "Create a new chain entity with its first version.\n\nAuthenticated\
+        \ callers (opt-in mode with a valid `X-API-Key`, or\nstrict mode) get their\
+        \ `meta.namespace` defaulted to `auth.owner`\nwhen unset \u2014 the standard\
+        \ CARE auto-scoping path. Explicit\nnamespaces in the body are respected verbatim."
+      operationId: create_chain_v1_chains_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Chain
+      tags:
+      - chains
+  /v1/chains/{chain_id}:
+    delete:
+      description: Soft-delete a chain.
+      operationId: delete_chain_v1_chains__chain_id__delete
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Chain
+      tags:
+      - chains
+    get:
+      description: Get a chain by ID, resolving the channel to a specific version.
+      operationId: get_chain_v1_chains__chain_id__get
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: header
+        name: if-none-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-None-Match
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Chain
+      tags:
+      - chains
+    patch:
+      description: 'Partial update of CARE-mutable entity-level fields.
+
+
+        Mutates ``display_name`` / ``description`` / ``tags`` / ``favourite``
+
+        on the entity row without creating a new chain version. CARE uses
+
+        this when the user renames a chain or toggles its favourite/tags
+
+        from the library screen.'
+      operationId: patch_chain_metadata_v1_chains__chain_id__patch
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityPatchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Patch Chain Metadata
+      tags:
+      - chains
+    put:
+      description: Update a chain by creating a new immutable version.
+      operationId: update_chain_v1_chains__chain_id__put
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: header
+        name: if-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Chain
+      tags:
+      - chains
+  /v1/chains/{chain_id}/favourite:
+    post:
+      description: Set the favourite flag on a chain (idempotent, no new version).
+      operationId: toggle_chain_favourite_v1_chains__chain_id__favourite_post
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavouriteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Toggle Chain Favourite
+      tags:
+      - chains
+  /v1/chains/{chain_id}/lineage:
+    get:
+      description: 'Return the ancestry DAG for a chain (or a specific version).
+
+
+        Walks `entity_versions.parents` recursively starting from the
+
+        version pinned to ``channel`` (or ``version_id`` when supplied),
+
+        de-duped by ``version_id``. CARE''s library uses this for the
+
+        evolution-tree visualisation triggered from the "Show lineage"
+
+        row action.'
+      operationId: get_chain_lineage_v1_chains__chain_id__lineage_get
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: query
+        name: version_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Version Id
+      - in: query
+        name: max_depth
+        required: false
+        schema:
+          default: 10
+          maximum: 100
+          minimum: 1
+          title: Max Depth
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineageResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Chain Lineage
+      tags:
+      - chains
+  /v1/chains/{chain_id}/run-recorded:
+    post:
+      description: 'Bump ``run_count`` and set ``last_run_at = now()``.
+
+
+        CARE calls this every time a saved chain is executed so the library
+
+        can sort by usage/recency.'
+      operationId: record_chain_run_v1_chains__chain_id__run_recorded_post
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordRunRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Record Chain Run
+      tags:
+      - chains
+  /v1/chains/{chain_id}/versions:
+    get:
+      description: List all versions of a chain with pagination.
+      operationId: list_chain_versions_v1_chains__chain_id__versions_get
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VersionInfo'
+                title: Response List Chain Versions V1 Chains  Chain Id  Versions
+                  Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Chain Versions
+      tags:
+      - versions
+  /v1/chains/{chain_id}/versions/beating:
+    get:
+      description: "Return chain versions that beat the baseline channel on an objective.\n\
+        \nCARE's \"promotion candidates\" view \u2014 pinpoints versions that\noutperformed\
+        \ the currently-blessed `stable` pin on a chosen metric,\nso a human can manually\
+        \ promote a winner.\n\nReturns ``404`` if the chain entity is missing or soft-deleted.\n\
+        Returns a structured ``baseline_value=null`` + ``winners=[]``\npayload when\
+        \ the baseline channel isn't pinned or doesn't carry the\nrequested objective\
+        \ \u2014 so the UI can render a meaningful empty\nstate without inferring\
+        \ the cause from a 404."
+      operationId: list_versions_beating_channel_v1_chains__chain_id__versions_beating_get
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - description: Baseline channel to compare against (typically `stable`).
+        in: query
+        name: channel
+        required: false
+        schema:
+          default: stable
+          description: Baseline channel to compare against (typically `stable`).
+          title: Channel
+          type: string
+      - description: Which evolution_meta value to compare. `fitness_score` reads
+          the standardised top-level field (legacy `fitness` fallback); any other
+          string is looked up in `evolution_meta.objectives` (e.g. `accuracy`, `latency_ms`).
+        in: query
+        name: objective
+        required: false
+        schema:
+          default: fitness_score
+          description: Which evolution_meta value to compare. `fitness_score` reads
+            the standardised top-level field (legacy `fitness` fallback); any other
+            string is looked up in `evolution_meta.objectives` (e.g. `accuracy`, `latency_ms`).
+          title: Objective
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - description: Sort direction for the winners list by `value`.
+        in: query
+        name: sort_dir
+        required: false
+        schema:
+          default: desc
+          description: Sort direction for the winners list by `value`.
+          pattern: ^(asc|desc)$
+          title: Sort Dir
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DifferentialChannelView'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Versions Beating Channel
+      tags:
+      - chains
+  /v1/chains/{chain_id}/versions/{version_id}:
+    get:
+      description: Get a specific chain version with its content.
+      operationId: get_chain_version_v1_chains__chain_id__versions__version_id__get
+      parameters:
+      - in: path
+        name: chain_id
+        required: true
+        schema:
+          format: uuid
+          title: Chain Id
+          type: string
+      - in: path
+        name: version_id
+        required: true
+        schema:
+          format: uuid
+          title: Version Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Chain Version
+      tags:
+      - versions
+  /v1/embeddings:
+    post:
+      description: "Generate embeddings for text inputs.\n\nThis endpoint uses the\
+        \ configured embedding provider to generate\nvector embeddings for the input\
+        \ texts. Supports batch processing\nfor efficiency.\n\nExample request:\n\
+        \    {\n        \"texts\": [\"Hello world\", \"Search query\"],\n        \"\
+        model\": \"all-MiniLM-L6-v2\"  // optional\n    }\n\nExample response:\n \
+        \   {\n        \"embeddings\": [[0.1, 0.2, ...], [0.3, 0.4, ...]],\n     \
+        \   \"model\": \"all-MiniLM-L6-v2\",\n        \"dimension\": 384\n    }\n\n\
+        Raises:\n    503: If embedding service is not available"
+      operationId: create_embeddings_v1_embeddings_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbeddingsRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddingsResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Embeddings
+      tags:
+      - search
+  /v1/events/stream:
+    get:
+      description: "Server-Sent Events stream for entity change notifications.\n\n\
+        Filters (all optional, AND-combined; ``tags`` is OR within itself):\n  * ``entity_type``\
+        \  \u2014 exact match.\n  * ``entity_id``    \u2014 exact match (single-entity\
+        \ subscription).\n  * ``namespace``    \u2014 exact match (library-wide subscription).\n\
+        \  * ``tags``         \u2014 repeated query param (e.g. ``?tags=pdf&tags=q1``);\n\
+        \    an event matches when its tags intersect the requested set.\n  * ``event_type``\
+        \   \u2014 filter on event kind, e.g. ``run_recorded``\n    for a stats widget\
+        \ that tracks runs only."
+      operationId: event_stream_v1_events_stream_get
+      parameters:
+      - in: query
+        name: entity_type
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Type
+      - in: query
+        name: entity_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Id
+      - in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+      - in: query
+        name: tags
+        required: false
+        schema:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+      - in: query
+        name: event_type
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Event Type
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Event Stream
+      tags:
+      - events
+  /v1/maintenance/clear-all:
+    post:
+      description: "Soft-delete all entities, optionally filtered by type.\n\n**Destructive\
+        \ \u2014 protected by two independent guards:**\n\n1. ``auth.require_scope(\"\
+        clear:all\")`` \u2014 the caller must hold the\n   ``clear:all`` scope. Anonymous\
+        \ opt-in callers always 403 here\n   (empty scope set); a personal-key holder\
+        \ without the scope\n   also 403s. Only the deployment admin (or an explicitly-issued\n\
+        \   maintenance key) can reach the handler body.\n2. ``X-Confirm: yes-i-really-mean-it``\
+        \ header \u2014 even when the\n   caller has the scope, the phrase must be\
+        \ typed verbatim so a\n   fat-fingered `curl` can't wipe CARE's library by\
+        \ accident.\n\nThe scope check runs **first** so unauthorised callers don't\
+        \ even\nlearn whether the X-Confirm token matches.\n\nArgs:\n    entity_type:\
+        \ Optional entity type to clear (step, chain, agent,\n        agent_skill,\
+        \ memory_card). If not provided, clears all\n        entity types.\n\nReturns:\n\
+        \    Dictionary with counts of deleted entities per type.\n\nRaises:\n   \
+        \ HTTPException 403 Forbidden: when the caller lacks ``clear:all``.\n    HTTPException\
+        \ 412 Precondition Failed: when ``X-Confirm`` is\n        missing or has the\
+        \ wrong value.\n    HTTPException 400 Bad Request: when ``entity_type`` is\
+        \ invalid."
+      operationId: clear_all_entities_v1_maintenance_clear_all_post
+      parameters:
+      - in: query
+        name: entity_type
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Type
+      - in: header
+        name: X-Confirm
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Confirm
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Clear All Entities
+      tags:
+      - entities (deprecated)
+  /v1/memory-cards:
+    get:
+      description: 'List all memory cards with pagination.
+
+
+        Authenticated callers without an explicit ``?namespace`` are
+
+        auto-scoped to ``auth.owner`` (mirrors writes-side auto-scoping;
+
+        bypass with the ``read:any`` scope). Anonymous callers in opt-in
+
+        deployments keep the "list everything" semantics.'
+      operationId: list_memory_cards_v1_memory_cards_get
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - description: Optional memory-card content kind filter, e.g. `dataset`.
+        in: query
+        name: kind
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional memory-card content kind filter, e.g. `dataset`.
+          title: Kind
+      - in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryCardPageResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Memory Cards
+      tags:
+      - memory_cards
+    post:
+      description: 'Create a new memory card entity with its first version.
+
+
+        Authenticated callers that omit ``meta.namespace`` get their writes
+
+        auto-scoped to ``auth.owner`` via the shared
+
+        :func:`default_namespace_for` helper. Anonymous opt-in callers
+
+        keep the request body''s namespace as-is.'
+      operationId: create_memory_card_v1_memory_cards_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryCardResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Memory Card
+      tags:
+      - memory_cards
+  /v1/memory-cards/{memory_card_id}:
+    delete:
+      description: Soft-delete a memory card.
+      operationId: delete_memory_card_v1_memory_cards__memory_card_id__delete
+      parameters:
+      - in: path
+        name: memory_card_id
+        required: true
+        schema:
+          format: uuid
+          title: Memory Card Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Memory Card
+      tags:
+      - memory_cards
+    get:
+      description: Get a memory card by ID, resolving the channel to a specific version.
+      operationId: get_memory_card_v1_memory_cards__memory_card_id__get
+      parameters:
+      - in: path
+        name: memory_card_id
+        required: true
+        schema:
+          format: uuid
+          title: Memory Card Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: header
+        name: if-none-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-None-Match
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryCardResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Memory Card
+      tags:
+      - memory_cards
+    put:
+      description: Update a memory card by creating a new immutable version.
+      operationId: update_memory_card_v1_memory_cards__memory_card_id__put
+      parameters:
+      - in: path
+        name: memory_card_id
+        required: true
+        schema:
+          format: uuid
+          title: Memory Card Id
+          type: string
+      - in: header
+        name: if-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryCardResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Memory Card
+      tags:
+      - memory_cards
+  /v1/memory-cards/{memory_card_id}/versions:
+    get:
+      description: List all versions of a memory card with pagination.
+      operationId: list_memory_card_versions_v1_memory_cards__memory_card_id__versions_get
+      parameters:
+      - in: path
+        name: memory_card_id
+        required: true
+        schema:
+          format: uuid
+          title: Memory Card Id
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VersionInfo'
+                title: Response List Memory Card Versions V1 Memory Cards  Memory
+                  Card Id  Versions Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Memory Card Versions
+      tags:
+      - versions
+  /v1/memory-cards/{memory_card_id}/versions/{version_id}:
+    get:
+      description: Get a specific memory card version with its content.
+      operationId: get_memory_card_version_v1_memory_cards__memory_card_id__versions__version_id__get
+      parameters:
+      - in: path
+        name: memory_card_id
+        required: true
+        schema:
+          format: uuid
+          title: Memory Card Id
+          type: string
+      - in: path
+        name: version_id
+        required: true
+        schema:
+          format: uuid
+          title: Version Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Memory Card Version
+      tags:
+      - versions
+  /v1/search/batch:
+    post:
+      description: "Batch search for multiple queries.\n\nBatch-embeds vector inputs\
+        \ when needed, then runs DB-bound searches\nserially on the request-scoped\
+        \ session.\nReturns a list of result lists, one per query.\n\nAuthenticated\
+        \ callers without an explicit ``namespace`` are\nauto-scoped to ``auth.owner``\
+        \ unless they hold ``read:any``.\nAnonymous opt-in callers keep the existing\
+        \ unscoped behavior.\n\nExample request:\n    {\n        \"search_type\":\
+        \ \"hybrid\",\n        \"queries\": [\"financial analysis\", \"code review\"\
+        , \"documentation\"],\n        \"top_k\": 5,\n        \"entity_type\": \"\
+        memory_card\",\n        \"hybrid_weights\": [0.4, 0.6]\n    }"
+      operationId: batch_search_v1_search_batch_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchSearchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSearchResponseModel'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Batch Search
+      tags:
+      - search
+  /v1/search/facets:
+    get:
+      description: 'Get aggregated facet counts for UI filters.
+
+
+        Returns counts for:
+
+        - entity_types: Number of entities per type
+
+        - tags: Number of entities per tag
+
+        - authors: Number of entities per author
+
+        - namespaces: Number of entities per namespace
+
+
+        Authenticated callers without an explicit ``namespace`` are
+
+        auto-scoped to ``auth.owner`` unless they hold ``read:any``.
+
+        Anonymous opt-in callers keep the existing unscoped behavior.'
+      operationId: get_facets_v1_search_facets_get
+      parameters:
+      - description: Filter facets by namespace
+        in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter facets by namespace
+          title: Namespace
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacetsResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Facets
+      tags:
+      - search
+  /v1/search/unified:
+    post:
+      description: "Unified search endpoint supporting BM25, vector, and hybrid search.\n\
+        \nThis endpoint provides a single interface for three search types:\n- **bm25**:\
+        \ Full-text search using PostgreSQL tsvector\n- **vector**: Semantic search\
+        \ using pgvector similarity\n- **hybrid**: Combined BM25 + Vector scores with\
+        \ configurable weights\n\nFor vector and hybrid search, embeddings can be\
+        \ generated server-side\n(if ENABLE_VECTOR_SEARCH=true) or provided as pre-computed\
+        \ vectors.\n\nAuthenticated callers without an explicit ``namespace`` are\n\
+        auto-scoped to ``auth.owner`` unless they hold ``read:any``.\nAnonymous opt-in\
+        \ callers keep the existing unscoped behavior.\n\nExample BM25 request:\n\
+        \    {\n        \"search_type\": \"bm25\",\n        \"query\": \"financial\
+        \ analysis\",\n        \"top_k\": 10,\n        \"entity_type\": \"memory_card\"\
+        \n    }\n\nExample vector request (server-side embedding):\n    {\n      \
+        \  \"search_type\": \"vector\",\n        \"query\": \"semantic similarity\"\
+        ,\n        \"top_k\": 10,\n        \"entity_type\": \"memory_card\"\n    }\n\
+        \nExample hybrid request:\n    {\n        \"search_type\": \"hybrid\",\n \
+        \       \"query\": \"analysis\",\n        \"hybrid_weights\": [0.3, 0.7],\n\
+        \        \"top_k\": 10,\n        \"entity_type\": \"memory_card\"\n    }\n\
+        \nExample vector request (client-side embedding):\n    {\n        \"search_type\"\
+        : \"vector\",\n        \"query_vector\": [0.1, 0.2, ...],\n        \"top_k\"\
+        : 10,\n        \"entity_type\": \"memory_card\"\n    }"
+      operationId: unified_search_v1_search_unified_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnifiedSearchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnifiedSearchResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Unified Search
+      tags:
+      - search
+  /v1/search/vector:
+    post:
+      description: 'Compatibility endpoint for client-supplied vector search.
+
+
+        New clients should prefer ``POST /v1/search/unified`` with
+
+        ``search_type="vector"``. This endpoint keeps the older
+
+        ``/v1/search/vector`` shape used by existing integrations.'
+      operationId: vector_search_v1_search_vector_post
+      parameters:
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VectorSearchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VectorSearchResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Vector Search
+      tags:
+      - search
+  /v1/steps:
+    get:
+      description: 'List all steps with pagination.
+
+
+        Authenticated callers without an explicit ``?namespace`` are
+
+        auto-scoped to ``auth.owner`` (mirrors writes-side auto-scoping;
+
+        bypass with the ``read:any`` scope). Anonymous callers in opt-in
+
+        deployments keep the "list everything" semantics.'
+      operationId: list_steps_v1_steps_get
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - in: query
+        name: channel
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Channel
+      - in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+      - in: header
+        name: X-API-Key
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - in: header
+        name: authorization
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepPageResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Steps
+      tags:
+      - steps
+    post:
+      description: Create a new step entity with its first version.
+      operationId: create_step_v1_steps_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Step
+      tags:
+      - steps
+  /v1/steps/{step_id}:
+    delete:
+      description: Soft-delete a step.
+      operationId: delete_step_v1_steps__step_id__delete
+      parameters:
+      - in: path
+        name: step_id
+        required: true
+        schema:
+          format: uuid
+          title: Step Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Step
+      tags:
+      - steps
+    get:
+      description: Get a step by ID, resolving the channel to a specific version.
+      operationId: get_step_v1_steps__step_id__get
+      parameters:
+      - in: path
+        name: step_id
+        required: true
+        schema:
+          format: uuid
+          title: Step Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: header
+        name: if-none-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-None-Match
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Step
+      tags:
+      - steps
+    put:
+      description: Update a step by creating a new immutable version.
+      operationId: update_step_v1_steps__step_id__put
+      parameters:
+      - in: path
+        name: step_id
+        required: true
+        schema:
+          format: uuid
+          title: Step Id
+          type: string
+      - in: header
+        name: if-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Step
+      tags:
+      - steps
+  /v1/steps/{step_id}/versions:
+    get:
+      description: List all versions of a step with pagination.
+      operationId: list_step_versions_v1_steps__step_id__versions_get
+      parameters:
+      - in: path
+        name: step_id
+        required: true
+        schema:
+          format: uuid
+          title: Step Id
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VersionInfo'
+                title: Response List Step Versions V1 Steps  Step Id  Versions Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Step Versions
+      tags:
+      - versions
+  /v1/steps/{step_id}/versions/{version_id}:
+    get:
+      description: Get a specific step version with its content.
+      operationId: get_step_version_v1_steps__step_id__versions__version_id__get
+      parameters:
+      - in: path
+        name: step_id
+        required: true
+        schema:
+          format: uuid
+          title: Step Id
+          type: string
+      - in: path
+        name: version_id
+        required: true
+        schema:
+          format: uuid
+          title: Version Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Step Version
+      tags:
+      - versions
+  /v1/webhooks:
+    post:
+      description: Register a webhook (not yet implemented).
+      operationId: create_webhook_v1_webhooks_post
+      responses:
+        '501':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+      summary: Create Webhook
+      tags:
+      - events
+  /v1/webhooks/{webhook_id}:
+    delete:
+      description: Delete a webhook (not yet implemented).
+      operationId: delete_webhook_v1_webhooks__webhook_id__delete
+      parameters:
+      - in: path
+        name: webhook_id
+        required: true
+        schema:
+          title: Webhook Id
+          type: string
+      responses:
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '501':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+      summary: Delete Webhook
+      tags:
+      - events
+  /v1/{entity_type}:
+    post:
+      description: Create a new entity with its first version.
+      operationId: create_entity_v1__entity_type__post
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Entity
+      tags:
+      - entities (deprecated)
+  /v1/{entity_type}/duplicates:
+    get:
+      description: 'Find near-duplicate pairs of a typed entity by cosine similarity.
+
+
+        Pairs are canonicalised (``entity_a.entity_id < entity_b.entity_id``)
+
+        so each unordered pair appears at most once. Sorted by descending
+
+        similarity so the strongest merge candidates come first.
+
+
+        * ``400`` when ``entity_type`` is not in ``VALID_ENTITY_TYPES``.
+
+        * ``503`` when the deployment has vector search disabled.'
+      operationId: find_duplicates_v1__entity_type__duplicates_get
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - description: Channel pointer to resolve each entity to one specific embedding.
+        in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          description: Channel pointer to resolve each entity to one specific embedding.
+          title: Channel
+          type: string
+      - description: "Minimum cosine similarity (inclusive) for a pair to qualify\
+          \ as a near-duplicate. The TODO \xA74 spec calls out 0.95 as the default;\
+          \ loosen it to 0.85 for exploratory inspection."
+        in: query
+        name: threshold
+        required: false
+        schema:
+          default: 0.95
+          description: "Minimum cosine similarity (inclusive) for a pair to qualify\
+            \ as a near-duplicate. The TODO \xA74 spec calls out 0.95 as the default;\
+            \ loosen it to 0.85 for exploratory inspection."
+          maximum: 1.0
+          minimum: 0.5
+          title: Threshold
+          type: number
+      - description: Restrict the scan to one namespace. Omit to scan every entity
+          of this type (useful for operator-level hygiene).
+        in: query
+        name: namespace
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Restrict the scan to one namespace. Omit to scan every entity
+            of this type (useful for operator-level hygiene).
+          title: Namespace
+      - description: Maximum number of pairs returned.
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          description: Maximum number of pairs returned.
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicatesResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Find Duplicates
+      tags:
+      - search
+  /v1/{entity_type}/{entity_id}:
+    delete:
+      description: Soft-delete an entity.
+      operationId: delete_entity_v1__entity_type___entity_id__delete
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Entity
+      tags:
+      - entities (deprecated)
+    get:
+      description: Get an entity by ID, resolving the channel to a specific version.
+      operationId: get_entity_v1__entity_type___entity_id__get
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          default: latest
+          title: Channel
+          type: string
+      - in: header
+        name: if-none-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-None-Match
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Entity
+      tags:
+      - entities (deprecated)
+    put:
+      description: Update an entity by creating a new immutable version.
+      operationId: update_entity_v1__entity_type___entity_id__put
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      - in: header
+        name: if-match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Entity
+      tags:
+      - entities (deprecated)
+  /v1/{entity_type}/{entity_id}/diff:
+    get:
+      description: 'Compute a JSON patch between two versions.
+
+
+        Defaults to JSON for programmatic callers (CARE TUI, MAGE).
+
+        Pass ``?format=html`` to get a styled HTML page suitable for
+
+        pasting a `curl` URL into a browser or embedding in a dashboard.'
+      operationId: diff_versions_v1__entity_type___entity_id__diff_get
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      - in: query
+        name: from
+        required: true
+        schema:
+          format: uuid
+          title: From
+          type: string
+      - in: query
+        name: to
+        required: true
+        schema:
+          format: uuid
+          title: To
+          type: string
+      - description: Response format. ``json`` (default) returns a ``DiffResponse``
+          with the raw RFC-6902 ops; ``html`` returns a self-contained browser-friendly
+          page.
+        in: query
+        name: format
+        required: false
+        schema:
+          default: json
+          description: Response format. ``json`` (default) returns a ``DiffResponse``
+            with the raw RFC-6902 ops; ``html`` returns a self-contained browser-friendly
+            page.
+          pattern: ^(json|html)$
+          title: Format
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Diff Versions
+      tags:
+      - versions
+  /v1/{entity_type}/{entity_id}/pin:
+    post:
+      description: Pin a channel to a specific version.
+      operationId: pin_channel_v1__entity_type___entity_id__pin_post
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Pin Channel
+      tags:
+      - versions
+  /v1/{entity_type}/{entity_id}/promote:
+    post:
+      description: "Promote: copy one channel pointer to another (default: latest\
+        \ \u2192 stable)."
+      operationId: promote_v1__entity_type___entity_id__promote_post
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/PromoteRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Promote
+      tags:
+      - versions
+  /v1/{entity_type}/{entity_id}/revert:
+    post:
+      description: 'Revert: create a new version with content from an old version.'
+      operationId: revert_v1__entity_type___entity_id__revert_post
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevertRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Revert
+      tags:
+      - versions
+  /v1/{entity_type}/{entity_id}/versions:
+    get:
+      description: List all versions of an entity with pagination.
+      operationId: list_versions_v1__entity_type___entity_id__versions_get
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VersionInfo'
+                title: Response List Versions V1  Entity Type   Entity Id  Versions
+                  Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Versions
+      tags:
+      - versions
+  /v1/{entity_type}/{entity_id}/versions/{version_id}:
+    get:
+      description: Get a specific version with its content.
+      operationId: get_version_v1__entity_type___entity_id__versions__version_id__get
+      parameters:
+      - in: path
+        name: entity_type
+        required: true
+        schema:
+          title: Entity Type
+          type: string
+      - in: path
+        name: entity_id
+        required: true
+        schema:
+          format: uuid
+          title: Entity Id
+          type: string
+      - in: path
+        name: version_id
+        required: true
+        schema:
+          format: uuid
+          title: Version Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Version
+      tags:
+      - versions
